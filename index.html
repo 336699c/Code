@@ -1,0 +1,119 @@
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+code {
+overflow-x: auto;
+white-space: pre-wrap;
+white-space: -moz-pre-wrap;
+white-space: -pre-wrap;
+white-space: -o-pre-wrap;
+word-wrap: break-word;
+}
+textarea {
+resize: vertical;
+background:#fff7;
+width:100%;
+border:0; 
+padding:10px;
+box-shadow: 5px 5px 20px 6px #6f7aed;
+border-radius: 6px;
+height:150px;
+font-size:1em;
+}
+code{
+font-family: monospace; 
+font-size:1em;
+}
+button{
+padding:10px 30px 10px 30px;
+background-color:#fffa;
+border:1px;
+border-radius: 8px;
+font-size:1em;
+}
+label.Code{
+font-family: monospace; 
+font-size:1em;
+padding:0 0 0 17px;
+text-align: left;
+}
+h1{
+text-align: center;
+font-size:1.5em;
+}
+button.generate:hover{
+background:gray
+}
+</style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+<title>Test</title>
+
+</head>
+
+
+<body style="background: linear-gradient(#cfcfff,#c0c0f0);">
+
+<!-- Sidebar -->
+<div class="pane" id="pane2">
+</div>
+
+
+<!-- Content -->
+<div id="main" class="container container-collaspe">
+<h1>Code Explain</h1>
+<textarea cols="40" rows="5" type="textbox" id="input" placeholder="Chan Tai Man,1,0,2,0,0,0
+K,0,1,1,1,1,1
+Chan Siu Ming,0,0,0,0,0,0"></textarea>
+
+<div id="centre" style="text-align: center;padding: 20px 0 0 0">
+<button onclick="submit2()" class="generate">Run</button>
+
+<input type="file" id="file-selector" style="padding: 0 25px 0 25px">
+
+</div>
+
+<pre style="background-color:#fff8;border-radius: 6px;">
+<br><label class="Code">Result: </label>
+<code id="result" style="background-color:#fff0"></code>
+<div class="loader" id="spin"></div>
+</pre>
+
+</div>
+</body>
+
+<script>
+function submit2(){
+var result="";
+const rank=["light demerit","minor demerit","major demerit","light merit","minor merit","major merit"];
+document.getElementById("input").value.split("\n").forEach(q=>{
+    var n=0,w=q.split(",");w.map(w=>n+=(parseInt(w)?parseInt(w):0));
+    result+="\n"+w.shift()+": ";
+    if(n>0){
+    w.forEach((q,i)=>{
+        if(q>0){result+=(n<0?", ":"")+q+" "+rank[i]+(q>1?"s":"");n=-1}
+    });
+    }
+    result+=(n?".":"NIL");
+});
+document.getElementById("result").innerText = result;
+}
+</script>
+
+<script>
+/* Base64Decode@base64.js | https://gist.github.com/chrisveness/e121cffb51481bd1c142 | MIT */
+function Base64Decode(r) { if (!/^[a-z0-9+/]+={0,2}$/i.test(r) || r.length % 4 != 0) throw Error("Not base64 string"); for (var t, e, n, o, h, a = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=", i = [], f = 0; f < r.length; f += 4)t = (h = a.indexOf(r.charAt(f)) << 18 | a.indexOf(r.charAt(f + 1)) << 12 | (n = a.indexOf(r.charAt(f + 2))) << 6 | (o = a.indexOf(r.charAt(f + 3)))) >>> 16 & 255, e = h >>> 8 & 255, h = 255 & h, i[f / 4] = String.fromCharCode(t, e, h), 64 == o && (i[f / 4] = String.fromCharCode(t, e)), 64 == n && (i[f / 4] = String.fromCharCode(t)); return r = i.join("") }
+
+  const fileSelector = document.getElementById('file-selector');
+  fileSelector.addEventListener('change', (event) => {
+ var file = event.target.files[0];
+ 
+  const reader = new FileReader();
+  reader.addEventListener('load', (event) => {
+    var result = event.target.result?.split("base64,")[1];
+    result=Base64Decode(result);
+    console.log(result);
+    document.getElementById("input").value = result;
+  });
+  reader.readAsDataURL(file); 
+  });
+</script>
