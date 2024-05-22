@@ -1,10 +1,31 @@
-<!DOCTYPE html>
 <html>
 <body style="background-color:#ffffffff;">
-
-<audio controls autoplay style="visibility:hidden">
-<source src="https://github.com/336699c/ai2/raw/main/icon/soundtrack.mp3" type="audio/mp3">
-</audio>
-
 </body>
+
+<script>
+
+setTimeout(()=>{
+var k = document.createElement('div');
+k.innerHTML = '<audio controls autoplay><source src="https://github.com/336699c/ai2/raw/main/icon/soundtrack.mp3" type="audio/mp3"></audio>';
+k.style.visibility="hidden";
+document.body.appendChild(k)
+},1000);
+
+function GetURLParameter(sParam)
+{
+    var sPageURL = window.location.search.substring(1);
+    var sURLVariables = sPageURL.split('&');
+    for (var i = 0; i < sURLVariables.length; i++) 
+    {
+        var sParameterName = sURLVariables[i].split('=');
+        if (sParameterName[0] == sParam) 
+        {
+            return sParameterName[1];
+        }
+    }
+};
+
+console.log(GetURLParameter("audio"));
+console.log(GetURLParameter("await"));
+</script>
 </html>
