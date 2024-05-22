@@ -3,14 +3,6 @@
 </body>
 
 <script>
-
-setTimeout(()=>{
-var k = document.createElement('div');
-k.innerHTML = '<audio controls autoplay><source src="https://github.com/336699c/ai2/raw/main/icon/soundtrack.mp3" type="audio/mp3"></audio>';
-k.style.visibility="hidden";
-document.body.appendChild(k)
-},1000);
-
 function GetURLParameter(sParam)
 {
     var sPageURL = window.location.search.substring(1);
@@ -25,7 +17,15 @@ function GetURLParameter(sParam)
     }
 };
 
-console.log(GetURLParameter("audio"));
-console.log(GetURLParameter("await"));
+var timeout = GetURLParameter("t")?GetURLParameter("t"):2000;
+var source = GetURLParameter("source")?GetURLParameter("source"):"https://github.com/336699c/ai2/raw/main/icon/soundtrack.mp3";
+
+
+setTimeout(()=>{
+var k = document.createElement('div');
+k.innerHTML = '<audio controls autoplay><source src="'+source+'" type="audio/mp3"></audio>';
+k.style.visibility="hidden";
+document.body.appendChild(k)
+},timeout);
 </script>
 </html>
