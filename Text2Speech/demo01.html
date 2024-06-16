@@ -2,18 +2,22 @@
 <head>
 <script type="text/javascript">
 
-var SSU = new SpeechSynthesisUtterance();
-SSU.text = 'Hello World';
+var s = Date.now();
 
 onload = function() {
+var SSU = new SpeechSynthesisUtterance();
+SSU.text = 'Hello World';
 window.speechSynthesis.speak(SSU);
 console.log(window.speechSynthesis.speaking);
 
-if (window.speechSynthesis.speaking) clearInterval(loop1);
+if (window.speechSynthesis.speaking) {
+clearInterval(loop1);
+console.log(Date.now() - s);
+}
 
 }
 
-var loop1 = setInterval(function() { onload(); }, 200);
+var loop1 = setInterval(function() { onload(); }, 500);
 //setTimeout(function() { onload(); }, 20000);
 
 
