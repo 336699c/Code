@@ -6,21 +6,17 @@ var s = Date.now();
 
 onload = function() {
 var SSU = new SpeechSynthesisUtterance();
-SSU.text = window.location.href.split("?")[1];
+SSU.text = "Your Text Here";
 window.speechSynthesis.speak(SSU);
-console.log(window.speechSynthesis.speaking);
 
 if (window.speechSynthesis.speaking) {
-clearInterval(loop1);
-console.log(Date.now() - s);
+  clearInterval(loop1);
+  console.log(Date.now() - s);
 }
 
 }
 
 var loop1 = setInterval(function() { onload(); }, 500);
-//setTimeout(function() { onload(); }, 20000);
-
-
 </script>
 </head>
 <body>
