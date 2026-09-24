@@ -14,6 +14,9 @@
             50% { transform: scale(1.04); }
         }
         .tile-anim { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #020617; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-6">
@@ -23,7 +26,7 @@
             8-Puzzle AI Visualizer & Game
         </h1>
         <p class="text-slate-400 text-sm sm:text-base mt-1">
-            Compare A*, UCS, BFS, and DFS or play manually with instant move evaluations!
+            Compare A*, UCS, BFS, and DFS with a search-tree inspector, or play manually with instant A*-based move evaluations!
         </p>
     </header>
 
@@ -74,6 +77,9 @@
                         <button onclick="togglePlayPause()" id="play-pause-btn" disabled class="px-4 py-2.5 bg-slate-800 text-slate-500 font-semibold rounded-xl text-sm transition-all">Play</button>
                         <button onclick="resetAutoPlayback()" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all" title="Reset">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                        <button onclick="openSearchTree()" id="tree-btn" disabled class="p-2.5 bg-slate-800 text-slate-500 rounded-xl transition-all" title="Inspect Search Tree">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v5m0 0a2 2 0 100 4 2 2 0 000-4zM5 19a2 2 0 100-4 2 2 0 000 4zm14 0a2 2 0 100-4 2 2 0 000 4zM6 15l4-2m4-4l4 2"/></svg>
                         </button>
                     </div>
                     <div>
@@ -127,8 +133,10 @@
                         <div id="feedback-desc" class="text-xs text-slate-400">Click tiles adjacent to the empty space.</div>
                     </div>
                 </div>
-                <div class="text-right">
-                    <div class="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Manhattan Delta</div>
+                <div class="text-right space-y-1 flex-shrink-0">
+                    <div class="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Optimal Steps</div>
+                    <div id="opt-steps" class="text-sm font-bold mono-font text-indigo-400">—</div>
+                    <div class="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Manhattan Δ</div>
                     <div id="manhattan-delta" class="text-sm font-bold mono-font text-slate-400">Δ 0</div>
                 </div>
             </div>
@@ -150,6 +158,77 @@
         </div>
     </div>
 
+    <!-- Search Tree Inspector Modal -->
+    <div id="tree-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-5xl h-[86vh] max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <!-- Modal Header -->
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-indigo-500 animate-pulse"></span>
+                    <h3 class="font-bold text-sm sm:text-base text-slate-200">Search Tree Inspector — <span id="tree-algo-label">Search</span> Exploration</h3>
+                </div>
+                <button onclick="closeSearchTree()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex flex-col md:flex-row flex-1 min-h-0">
+                <!-- Canvas Container -->
+                <div id="tree-canvas-wrap" class="relative flex-1 bg-slate-950 overflow-hidden min-h-[340px]">
+                    <canvas id="tree-canvas" class="block w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+
+                    <!-- Canvas Toolbar -->
+                    <div class="absolute top-2 left-2 flex space-x-2 z-10">
+                        <button onclick="fitTreeView()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-200 transition-all">Fit</button>
+                        <button onclick="resetTreeView()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-200 transition-all">Zoom 1:1</button>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="absolute bottom-2 left-2 z-10 bg-slate-950/85 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] text-slate-400 leading-relaxed max-w-[90%]">
+                        <div class="font-semibold text-slate-300 mb-0.5">Drag: pan &middot; Scroll: zoom &middot; Click: inspect node</div>
+                        <div class="flex flex-wrap gap-x-3 gap-y-0.5">
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-indigo-500 mr-1 align-middle"></i>Start</span>
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1 align-middle"></i>Solution path</span>
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1 align-middle"></i>Goal</span>
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 align-middle"></i>Dead end</span>
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1 align-middle"></i>Explored</span>
+                            <span><i class="inline-block w-2 h-2 rounded-full bg-slate-800 mr-1 align-middle border border-slate-600"></i>Frontier</span>
+                            <span><i class="inline-block w-2.5 h-2 rounded-full bg-slate-800 mr-1 align-middle border border-dashed border-slate-500"></i>Hidden subtree (+N)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Node State Preview Sidebar -->
+                <div class="w-full md:w-64 md:flex-shrink-0 bg-slate-900/90 border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col items-center justify-start overflow-y-auto">
+                    <h4 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Node Board State</h4>
+                    <div id="tree-preview-grid" class="grid grid-cols-3 w-40 aspect-square bg-slate-950 rounded-xl border-2 border-slate-700 overflow-hidden mb-3">
+                        <!-- Populated on node click -->
+                    </div>
+                    <div id="tree-node-info" class="text-[11px] text-slate-400 text-center leading-relaxed break-all">Click any node on the tree to inspect its board state. Use the Detail slider to reveal more explored nodes — the solution spine stays visible.</div>
+                </div>
+            </div>
+
+            <!-- Density Controls -->
+            <div class="px-4 py-2 border-t border-slate-800 flex items-center gap-3 bg-slate-950/60">
+                <span class="text-[10px] uppercase font-semibold text-slate-500 tracking-wider whitespace-nowrap">Detail</span>
+                <input type="range" id="tree-density" min="0" max="1000" value="400" oninput="onTreeDensity(this.value)" class="flex-1 accent-indigo-500 h-2 cursor-pointer">
+                <button onclick="showSpineOnly()" class="px-2 py-1 text-[10px] font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-all whitespace-nowrap">Spine</button>
+                <button onclick="showAllTree()" class="px-2 py-1 text-[10px] font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/40 hover:bg-indigo-500/20 rounded-lg transition-all whitespace-nowrap">Show All</button>
+                <span id="tree-density-label" class="text-[10px] mono-font text-slate-400 whitespace-nowrap">400 shown</span>
+            </div>
+
+            <!-- Modal Footer & Stats -->
+            <div class="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+                <div id="tree-stats" class="font-medium text-slate-300">—</div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="applyTreeNodeState()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow transition-all">Apply Node State to Board</button>
+                    <button onclick="closeSearchTree()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const GOAL_BOARD = [1, 2, 3, 4, 5, 6, 7, 8, 'x'];
         let currentBoard = [5, 3, 7, 1, 'x', 4, 8, 2, 6];
@@ -159,7 +238,7 @@
         
         let moveCount = 0;
         let boardHistory = []; // stores past boards for loop / F grade detection
-        let historyManhattan = []; // tracks manhattan distances of past boards
+        let lastOptimalSteps = Infinity; // A* optimal steps remaining for the current manual board
 
         // Auto solve state
         let solutionPath = [];
@@ -167,8 +246,25 @@
         let isPlayingAuto = false;
         let autoTimer = null;
         let autoSpeed = 300;
-        let exploredCount = 0;
         let solveStartTime = 0;
+
+        // Search tree capture + inspector state
+        let currentTree = [];
+        let currentTreeResult = null;
+        let subtreeSizes = [];
+        let treeViz = {
+            threshold: 400,
+            selectedId: null,
+            activeNode: null,
+            nodePos: {},
+            badges: [],
+            zoom: 1,
+            tx: 0,
+            ty: 0,
+            dragging: false,
+            moved: 0,
+            last: { x: 0, y: 0 }
+        };
 
         // Web Audio API Synthesizer
         let audioCtx = null;
@@ -270,25 +366,80 @@
             return b1.every((val, idx) => val === b2[idx]);
         }
 
-        /* STREAMING_CHUNK:Implementing AI search algorithms (A*, UCS, BFS, DFS)... */
-        function solvePuzzle(startBoard, algo) {
+        /* ------------------------------------------------------------------
+           Search algorithms. Every algorithm can OPTIONALLY capture the full
+           search tree (captureTree=true) for the tree inspector.
+           Tree node: { id, parent, depth, board, move, g, h, f,
+                        expanded, goal, onSolutionPath, deadEnd, children[] }
+           ------------------------------------------------------------------ */
+        function makeTreeNode(id, parent, depth, board, move, g, h, f) {
+            return { id: id, parent: parent, depth: depth, board: board, move: move, g: g, h: h, f: f, expanded: false, goal: false, onSolutionPath: false, deadEnd: false, children: [] };
+        }
+
+        function markSolutionPath(tree, goalTreeId) {
+            if (!tree || goalTreeId == null) return;
+            let cur = goalTreeId;
+            while (cur != null) {
+                const n = tree[cur];
+                n.onSolutionPath = true;
+                if (cur === goalTreeId) n.goal = true;
+                cur = n.parent;
+            }
+        }
+
+        function finalizeTree(tree, goalTreeId) {
+            if (!tree) return;
+            for (let i = 0; i < tree.length; i++) {
+                const nd = tree[i];
+                if (nd.goal) continue;
+                if (!nd.expanded) {
+                    nd.reason = 'Queued but never expanded (frontier leftover).';
+                } else if (nd.onSolutionPath) {
+                    nd.reason = 'On the winning / solution path.';
+                } else if (nd.children.length === 0) {
+                    nd.deadEnd = true;
+                    nd.reason = 'Dead end: all neighbor states were already visited.';
+                } else {
+                    nd.reason = 'Fully explored without reaching the goal.';
+                }
+            }
+        }
+
+        function solvePuzzle(startBoard, algo, captureTree) {
+            if (algo === 'dfs') return solvePuzzleDFS(startBoard, captureTree);
+
             let startTime = performance.now();
+            let startBoardCopy = [...startBoard];
+            let startH = getManhattanDistance(startBoardCopy);
+
+            let tree = null;
+            if (captureTree) {
+                tree = [ makeTreeNode(0, null, 0, startBoardCopy, null, 0, startH, algo === 'astar' ? startH : 0) ];
+            }
+            let nextId = 1;
+            let goalTreeId = null;
+
             let startState = {
-                board: startBoard,
+                board: startBoardCopy,
                 cost: 0,
-                heuristic: getManhattanDistance(startBoard),
+                heuristic: startH,
                 path: [],
-                moveList: []
+                moveList: [],
+                treeId: 0
             };
             startState.priority = algo === 'astar' ? startState.cost + startState.heuristic :
                                   algo === 'ucs' ? startState.cost : 0;
 
             let frontier = [startState];
-            let visited = new Set();
+            let closed = new Set();      // fully expanded boards
+            let inFrontier = new Set([startBoardCopy.join(',')]);
             let exploredNodes = 0;
+            let budgetExceeded = false;
+            // The 8-puzzle has 181,440 reachable states; this cap guarantees a
+            // full exploration of every reachable state finishes cleanly.
+            const MAX_NODES = 200000;
 
             while (frontier.length > 0) {
-                // Select node based on algorithm strategy
                 let currentIndex = 0;
                 if (algo === 'astar' || algo === 'ucs') {
                     let minPrio = frontier[0].priority;
@@ -300,52 +451,175 @@
                     }
                 } else if (algo === 'bfs') {
                     currentIndex = 0; // FIFO
-                } else if (algo === 'dfs') {
-                    currentIndex = frontier.length - 1; // LIFO
                 }
 
                 let current = frontier.splice(currentIndex, 1)[0];
+                let boardKey = current.board.join(',');
+                if (closed.has(boardKey)) continue;
+                inFrontier.delete(boardKey);
+                closed.add(boardKey);
                 exploredNodes++;
 
-                let boardKey = current.board.join(',');
-                if (visited.has(boardKey)) continue;
-                visited.add(boardKey);
+                let curNode = tree ? tree[current.treeId] : null;
+                if (curNode) curNode.expanded = true;
 
                 if (boardsEqual(current.board, GOAL_BOARD)) {
-                    let endTime = performance.now();
-                    return {
+                    goalTreeId = current.treeId;
+                    let res = {
                         success: true,
                         path: [...current.path, current.board],
                         moves: current.moveList,
                         explored: exploredNodes,
-                        time: ((endTime - startTime)).toFixed(1)
+                        time: (performance.now() - startTime).toFixed(1),
+                        tree: tree,
+                        goalTreeId: goalTreeId,
+                        budgetExceeded: false
                     };
+                    if (tree) { markSolutionPath(tree, goalTreeId); finalizeTree(tree, goalTreeId); }
+                    return res;
                 }
 
                 for (let neighbor of getNeighbors(current.board)) {
                     let nKey = neighbor.board.join(',');
-                    if (!visited.has(nKey)) {
+                    if (!closed.has(nKey) && !inFrontier.has(nKey)) {
+                        inFrontier.add(nKey);
                         let newCost = current.cost + 1;
                         let nHeuristic = getManhattanDistance(neighbor.board);
                         let priority = algo === 'astar' ? newCost + nHeuristic :
                                        algo === 'ucs' ? newCost : 0;
-                        
-                        frontier.push({
+                        let newState = {
                             board: neighbor.board,
                             cost: newCost,
                             heuristic: nHeuristic,
                             priority: priority,
                             path: [...current.path, current.board],
-                            moveList: [...current.moveList, neighbor.movedTile]
-                        });
+                            moveList: [...current.moveList, neighbor.movedTile],
+                            treeId: tree ? nextId : -1
+                        };
+                        if (tree && curNode) {
+                            let childNode = makeTreeNode(nextId, curNode.id, curNode.depth + 1, neighbor.board, neighbor.movedTile, newCost, nHeuristic, priority);
+                            tree.push(childNode);
+                            curNode.children.push(nextId);
+                            nextId++;
+                        }
+                        frontier.push(newState);
                     }
                 }
 
-                // Safety limit for DFS/BFS depth/nodes
-                if (exploredNodes > 30000) break;
+                if (exploredNodes > MAX_NODES) { budgetExceeded = true; break; }
             }
 
-            return { success: false, explored: exploredNodes, time: 0 };
+            if (tree) { markSolutionPath(tree, goalTreeId); finalizeTree(tree, goalTreeId); }
+            return {
+                success: false,
+                explored: exploredNodes,
+                time: (performance.now() - startTime).toFixed(1),
+                tree: tree,
+                goalTreeId: goalTreeId,
+                budgetExceeded: budgetExceeded,
+                path: [],
+                moves: []
+            };
+        }
+
+        /* DFS with explicit backtracking.
+           - Stores every visited node (visited set marked at entry) so a node
+             is never re-entered.
+           - If a node has no valid (unvisited) neighbor, we backtrack to the
+             previous node on the stack. */
+        function solvePuzzleDFS(startBoard, captureTree) {
+            const startTime = performance.now();
+            // The 8-puzzle has 181,440 reachable states; DFS with a visited set
+            // touches each state at most once, so this cap always completes.
+            const MAX_NODES = 200000;
+            let exploredNodes = 0;
+            let budgetExceeded = false;
+            let solved = false;
+            let goalTreeId = null;
+
+            const visited = new Set();
+            let tree = null;
+            if (captureTree) {
+                tree = [ makeTreeNode(0, null, 0, [...startBoard], null, 0, getManhattanDistance(startBoard), 0) ];
+            }
+            let nextId = 1;
+
+            const path = [];       // board chain root -> current frame
+            const moveChain = [];  // moved tiles per link
+            const stack = [];
+
+            const rootKey = startBoard.join(',');
+            visited.add(rootKey);
+            exploredNodes++;
+            path.push([...startBoard]);
+            moveChain.push(null);
+            stack.push({ board: [...startBoard], key: rootKey, nodeId: 0, neighbors: null, next: 0 });
+
+            while (stack.length > 0) {
+                const frame = stack[stack.length - 1];
+                const node = tree ? tree[frame.nodeId] : null;
+
+                if (boardsEqual(frame.board, GOAL_BOARD)) {
+                    solved = true;
+                    goalTreeId = frame.nodeId;
+                    break;
+                }
+
+                if (frame.neighbors === null) {
+                    // First entry: only neighbors not yet visited are valid options.
+                    frame.neighbors = getNeighbors(frame.board).filter(nb => !visited.has(nb.board.join(',')));
+                    if (node) {
+                        node.expanded = true;
+                        node.reason = frame.neighbors.length === 0
+                            ? 'Dead end: every move leads to a state already visited — backtracking.'
+                            : 'Expanded';
+                    }
+                }
+
+                if (frame.next >= frame.neighbors.length) {
+                    // No valid node left here -> go back to the previous node.
+                    stack.pop();
+                    path.pop();
+                    moveChain.pop();
+                    continue;
+                }
+
+                const nb = frame.neighbors[frame.next++];
+                const nKey = nb.board.join(',');
+                if (visited.has(nKey)) continue;
+
+                visited.add(nKey);
+                exploredNodes++;
+                if (exploredNodes > MAX_NODES) { budgetExceeded = true; break; }
+
+                const childId = tree ? nextId : -1;
+                if (tree && node) {
+                    const childNode = makeTreeNode(nextId, frame.nodeId, node.depth + 1, nb.board, nb.movedTile, node.g + 1, getManhattanDistance(nb.board), 0);
+                    tree.push(childNode);
+                    node.children.push(nextId);
+                    nextId++;
+                }
+                path.push(nb.board);
+                moveChain.push(nb.movedTile);
+                stack.push({ board: nb.board, key: nKey, nodeId: childId, neighbors: null, next: 0 });
+            }
+
+            const time = (performance.now() - startTime).toFixed(1);
+            let result;
+            if (solved) {
+                result = { success: true, path: path, moves: moveChain.slice(1), explored: exploredNodes, time: time, tree: tree, goalTreeId: goalTreeId, budgetExceeded: false };
+            } else if (budgetExceeded) {
+                result = { success: false, explored: exploredNodes, time: time, tree: tree, goalTreeId: null, budgetExceeded: true, path: [], moves: [] };
+            } else {
+                result = { success: false, explored: exploredNodes, time: time, tree: tree, goalTreeId: null, budgetExceeded: false, path: [], moves: [] };
+            }
+            if (tree) { markSolutionPath(tree, goalTreeId); finalizeTree(tree, goalTreeId); }
+            return result;
+        }
+
+        function optimalStepsFrom(board) {
+            const res = solvePuzzle(board, 'astar', false);
+            return res.success ? res.path.length - 1 : Infinity;
         }
 
         function renderBoard(boardToRender = currentBoard) {
@@ -423,6 +697,20 @@
                     b.className = "p-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 transition-all";
                 }
             });
+
+            // Rewind the board back to the init state before solving again
+            // (e.g. when A* previously solved and left the board somewhere else).
+            stopAutoSolve();
+            solutionPath = [];
+            solutionIndex = 0;
+            currentBoard = [...initialBoard];
+            document.getElementById('solve-btn').disabled = false;
+            document.getElementById('play-pause-btn').disabled = true;
+            document.getElementById('play-pause-btn').className = "px-4 py-2.5 bg-slate-800 text-slate-500 font-semibold rounded-xl text-sm transition-all";
+            setTreeButtonEnabled(false);
+            document.getElementById('stat-moves').innerText = "0";
+            renderBoard();
+
             prepareAutoSolve();
         }
 
@@ -436,50 +724,51 @@
 
             playSound('tile');
 
-            // Evaluate move grade
+            // Heuristic context
             let prevManhattan = getManhattanDistance(currentBoard);
             let newManhattan = getManhattanDistance(newBoard);
             let delta = newManhattan - prevManhattan; // negative is closer to goal!
 
+            // A* ground truth: optimal steps remaining before / after the move
+            let prevOpt = lastOptimalSteps;
+            let astarRes = solvePuzzle(newBoard, 'astar', false);
+            let newOpt = astarRes.success ? astarRes.path.length - 1 : Infinity;
+            lastOptimalSteps = newOpt;
+
             // Check if loop / backtracking (F grade)
             let isLoop = boardHistory.some(b => boardsEqual(b, newBoard));
+            let diff = Number.isFinite(prevOpt) && Number.isFinite(newOpt) ? newOpt - prevOpt : NaN;
 
             let grade = 'B';
             let title = 'Meh move';
-            let desc = 'Maintains or slightly adjusts distance.';
+            let desc = '';
             let badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
 
             if (isLoop) {
                 grade = 'F';
                 title = 'Loop Move / Revisit!';
-                desc = 'You have visited this exact board configuration before.';
+                desc = 'You have visited this exact board configuration before — avoid revisits.';
                 badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+            } else if (diff === -1) {
+                grade = 'S';
+                title = 'Optimal Move!';
+                desc = `This move lies on a shortest solution path (${newOpt} steps remain).`;
+                badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+            } else if (diff === 0 && delta < 0) {
+                grade = 'A';
+                title = 'Good Move';
+                desc = `Closer by Manhattan distance, but not the absolute shortest route (${newOpt} steps remain).`;
+                badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+            } else if (diff === 0) {
+                grade = 'B';
+                title = 'Neutral Move';
+                desc = `Optimal distance unchanged — you missed the optimal move (${newOpt} steps remain).`;
+                badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
             } else {
-                // Find optimal distance from current state using A* solver 1-step lookahead or optimal delta
-                // S = optimal move (reduces manhattan distance maximally or aligns with shortest path)
-                if (delta < 0) {
-                    if (delta <= -2) {
-                        grade = 'S';
-                        title = 'Optimal Move!';
-                        desc = 'Excellent! Significantly brings the puzzle closer to the goal.';
-                        badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-                    } else {
-                        grade = 'A';
-                        title = 'Good Move';
-                        desc = 'Brings the puzzle closer to the goal.';
-                        badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
-                    }
-                } else if (delta === 0) {
-                    grade = 'B';
-                    title = 'Neutral Move';
-                    desc = 'Maintains the same distance to the goal.';
-                    badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-                } else {
-                    grade = 'C';
-                    title = 'Bad Move';
-                    desc = 'Moves the puzzle farther away from the goal.';
-                    badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-                }
+                grade = 'C';
+                title = 'Suboptimal Move';
+                desc = `This move adds a step to the optimal solution (${newOpt} steps remain).`;
+                badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-500/30';
             }
 
             // Save history
@@ -493,23 +782,35 @@
             document.getElementById('feedback-title').innerText = title;
             document.getElementById('feedback-desc').innerText = desc;
             document.getElementById('manhattan-delta').innerText = `Δ ${delta > 0 ? '+' + delta : delta}`;
+            document.getElementById('opt-steps').innerText = Number.isFinite(newOpt) ? `${newOpt} steps` : '—';
 
             renderBoard();
 
             if (boardsEqual(currentBoard, GOAL_BOARD)) {
                 playSound('success');
                 document.getElementById('feedback-title').innerText = "Puzzle Solved!";
-                document.getElementById('feedback-desc').innerText = `Completed in ${moveCount} moves! Amazing job.`;
+                document.getElementById('feedback-desc').innerText = `Completed in ${moveCount} moves! Solve via the shortest route to score an S.`;
                 document.getElementById('grade-badge').innerText = "★";
+                document.getElementById('opt-steps').innerText = "0 steps";
             }
         }
 
         function prepareAutoSolve() {
             stopAutoSolve();
             document.getElementById('solution-status').innerText = "Computing...";
+            document.getElementById('tree-btn').disabled = true;
             
             setTimeout(() => {
-                let res = solvePuzzle(currentBoard, currentAlgo);
+                let res = solvePuzzle(currentBoard, currentAlgo, true);
+                currentTreeResult = res;
+                currentTree = res.tree || [];
+                if (currentTree.length > 0) {
+                    updateSubtreeSizes();
+                    setTreeButtonEnabled(true);
+                } else {
+                    setTreeButtonEnabled(false);
+                }
+
                 if (res.success) {
                     solutionPath = res.path;
                     solutionIndex = 0;
@@ -521,8 +822,20 @@
                 } else {
                     document.getElementById('solution-status').innerText = "No solution / Limit exceeded";
                     document.getElementById('play-pause-btn').disabled = true;
+                    document.getElementById('play-pause-btn').className = "px-4 py-2.5 bg-slate-800 text-slate-500 font-semibold rounded-xl text-sm transition-all";
+                    document.getElementById('stat-meta').innerText = `${res.explored} nodes`;
                 }
             }, 50);
+        }
+
+        function setTreeButtonEnabled(en) {
+            const btn = document.getElementById('tree-btn');
+            if (!btn) return;
+            btn.disabled = !en;
+            btn.className = en
+                ? "p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-900/30"
+                : "p-2.5 bg-slate-800 text-slate-500 rounded-xl transition-all";
+            btn.title = en ? "Inspect Search Tree" : "Solve first to inspect the search tree";
         }
 
         function startAutoSolve() {
@@ -572,6 +885,9 @@
                 currentBoard = [...solutionPath[0]];
                 renderBoard();
                 document.getElementById('stat-moves').innerText = `0 / ${solutionPath.length - 1}`;
+            } else {
+                currentBoard = [...initialBoard];
+                renderBoard();
             }
         }
 
@@ -595,11 +911,22 @@
             document.getElementById('feedback-title').innerText = "Make your first move!";
             document.getElementById('feedback-desc').innerText = "Click tiles adjacent to the empty space.";
             document.getElementById('manhattan-delta').innerText = "Δ 0";
+
+            if (gameMode === 'manual') {
+                lastOptimalSteps = optimalStepsFrom(currentBoard);
+                document.getElementById('opt-steps').innerText = Number.isFinite(lastOptimalSteps) ? `${lastOptimalSteps} steps` : '—';
+                document.getElementById('feedback-desc').innerText = Number.isFinite(lastOptimalSteps)
+                    ? `A* finds an optimal ${lastOptimalSteps}-step solution — try to match it!`
+                    : "Click tiles adjacent to the empty space.";
+            } else {
+                document.getElementById('opt-steps').innerText = '—';
+            }
+
             renderBoard();
         }
 
         function loadDefaultBoard() {
-            initialBoard = [5, 3, 7, 1, 'x', 4, 8, 2, 6];
+            initialBoard = [7,2,4,5,'x',6,8,3,1];
             setMode(gameMode);
         }
 
@@ -651,7 +978,7 @@
             for (let t of newBoard) {
                 if (t !== 'x' && (isNaN(t) || t < 1 || t > 8)) {
                     errEl.innerText = "Error: Values must be numbers 1-8 and 'x'.";
-                    errEl.classList.add('hidden');
+                    errEl.classList.remove('hidden');
                     return;
                 }
                 counts[t] = (counts[t] || 0) + 1;
@@ -676,8 +1003,411 @@
             setMode(gameMode);
         }
 
+        /* ------------------------------------------------------------------
+           Search Tree Inspector
+           Clever rendering strategy: the 8-puzzle search tree can hold well
+           over 100k nodes, so we never draw everything blindly. Instead:
+             - The solution spine is ALWAYS drawn.
+             - A "Detail" slider reveals progressively more nodes in discovery
+               order (id <= threshold).
+             - Hidden subtrees are collapsed into "+N" chips owned by their
+               parent, so you always know how much remains unexplored.
+             - Pan (drag), zoom (wheel), click-to-inspect, Fit / 1:1 buttons.
+           ------------------------------------------------------------------ */
+        function updateSubtreeSizes() {
+            subtreeSizes = new Array(currentTree.length).fill(1);
+            for (let i = currentTree.length - 1; i >= 0; i--) {
+                const ch = currentTree[i].children;
+                for (let k = 0; k < ch.length; k++) subtreeSizes[i] += subtreeSizes[ch[k]];
+            }
+        }
+
+        let treeVizLayout = { visChildren: [], hiddenCounts: [], units: [] };
+        let nodePositionsMap = {};
+        let treeBadges = [];
+
+        function layoutTree() {
+            const N = currentTree.length;
+            const visChildren = new Array(N);
+            const hiddenCounts = new Array(N).fill(0);
+
+            if (treeViz.threshold < 0) treeViz.threshold = 0;
+            for (let i = 0; i < N; i++) {
+                const n = currentTree[i];
+                if (n.onSolutionPath || n.id <= treeViz.threshold) visChildren[i] = [];
+            }
+
+            for (let i = 0; i < N; i++) {
+                const n = currentTree[i];
+                if (visChildren[i] === undefined) continue;
+                const ch = n.children;
+                for (let k = 0; k < ch.length; k++) {
+                    const c = ch[k];
+                    if (visChildren[c] !== undefined) visChildren[i].push(c);
+                    else hiddenCounts[i] += subtreeSizes[c];
+                }
+            }
+
+            const units = new Array(N).fill(1);
+            for (let i = N - 1; i >= 0; i--) {
+                if (visChildren[i] === undefined) continue;
+                let w = 0;
+                const kids = visChildren[i];
+                for (let k = 0; k < kids.length; k++) w += units[kids[k]];
+                if (hiddenCounts[i] > 0) w += 1;
+                units[i] = Math.max(1, w);
+            }
+
+            treeVizLayout = { visChildren: visChildren, hiddenCounts: hiddenCounts, units: units };
+            nodePositionsMap = {};
+            treeBadges = [];
+
+            if (visChildren[0] !== undefined) {
+                const UNIT = 34, ROW = 56;
+                const totalW = units[0] * UNIT;
+                placeRowIter(0, 0, totalW, ROW);
+            }
+
+            treeViz.nodePos = nodePositionsMap;
+            treeViz.badges = treeBadges;
+        }
+
+        function placeRowIter(rootId, left, right, ROW) {
+            const L = treeVizLayout;
+            const stack = [{ id: rootId, left: left, right: right }];
+            while (stack.length) {
+                const f = stack.pop();
+                const node = currentTree[f.id];
+                const kids = L.visChildren[f.id] || [];
+
+                if (kids.length === 0) {
+                    nodePositionsMap[f.id] = { x: (f.left + f.right) / 2, y: 28 + node.depth * ROW };
+                    if (L.hiddenCounts[f.id] > 0) {
+                        treeBadges.push({ parentId: f.id, x: (f.left + f.right) / 2, y: 28 + (node.depth + 1) * ROW, count: L.hiddenCounts[f.id] });
+                    }
+                    continue;
+                }
+
+                let totalU = L.hiddenCounts[f.id] > 0 ? 1 : 0;
+                for (let i = 0; i < kids.length; i++) totalU += L.units[kids[i]];
+                let x = f.left;
+                const ranges = [];
+                for (let i = 0; i < kids.length; i++) {
+                    const c = kids[i];
+                    const w = (f.right - f.left) * L.units[c] / totalU;
+                    ranges.push({ id: c, left: x, right: x + w });
+                    x += w;
+                }
+                for (let i = ranges.length - 1; i >= 0; i--) stack.push(ranges[i]);
+                if (L.hiddenCounts[f.id] > 0) {
+                    treeBadges.push({ parentId: f.id, x: (x + f.right) / 2, y: 28 + (node.depth + 1) * ROW, count: L.hiddenCounts[f.id] });
+                }
+                nodePositionsMap[f.id] = { x: (f.left + f.right) / 2, y: 28 + node.depth * ROW };
+            }
+        }
+
+        function drawTree() {
+            const canvas = document.getElementById('tree-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(treeViz.tx, treeViz.ty);
+            ctx.scale(treeViz.zoom, treeViz.zoom);
+            const R = 12;
+
+            // edges between visible parent-child
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (const idStr in treeViz.nodePos) {
+                const id = parseInt(idStr);
+                const p = treeViz.nodePos[id];
+                const node = currentTree[id];
+                if (node.parent != null && treeViz.nodePos[node.parent] !== undefined) {
+                    const pp = treeViz.nodePos[node.parent];
+                    ctx.moveTo(pp.x, pp.y);
+                    ctx.lineTo(p.x, p.y);
+                }
+            }
+            ctx.stroke();
+
+            // stub edges to hidden-subtree chips
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (const b of treeViz.badges) {
+                const par = treeViz.nodePos[b.parentId];
+                if (!par) continue;
+                ctx.moveTo(par.x, par.y);
+                ctx.lineTo(b.x, b.y);
+            }
+            ctx.stroke();
+
+            // nodes
+            for (const idStr in treeViz.nodePos) {
+                const p = treeViz.nodePos[idStr];
+                const node = currentTree[idStr];
+                let fill = '#64748b';
+                if (node.id === 0) fill = '#6366f1';
+                else if (node.goal) fill = '#f59e0b';
+                else if (node.onSolutionPath) fill = '#10b981';
+                else if (node.deadEnd) fill = '#f87171';
+                else if (!node.expanded) fill = '#334155';
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                const label = node.move != null ? node.move : (node.id === 0 ? 'S' : 'R');
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = '10px JetBrains Mono, monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(String(label), p.x, p.y);
+            }
+
+            // hidden-subtree chips
+            for (const b of treeViz.badges) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
+                ctx.fillStyle = '#1e293b';
+                ctx.fill();
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '8px JetBrains Mono, monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+' + b.count, b.x, b.y);
+            }
+
+            // selected ring
+            if (treeViz.selectedId != null && treeViz.nodePos[treeViz.selectedId] !== undefined) {
+                const p = treeViz.nodePos[treeViz.selectedId];
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, R + 4, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function sizeTreeCanvas() {
+            const wrap = document.getElementById('tree-canvas-wrap');
+            const c = document.getElementById('tree-canvas');
+            if (wrap && c) {
+                c.width = Math.max(400, wrap.clientWidth);
+                c.height = Math.max(320, wrap.clientHeight);
+            }
+        }
+
+        function openSearchTree() {
+            if (!currentTree || currentTree.length === 0) return;
+            document.getElementById('tree-modal').classList.remove('hidden');
+            document.getElementById('tree-algo-label').innerText = currentAlgo.toUpperCase() + ' (A*/UCS/BFS/DFS)';
+
+            sizeTreeCanvas();
+
+            const slider = document.getElementById('tree-density');
+            const total = currentTree.length - 1;
+            slider.min = 0;
+            slider.max = Math.max(0, total);
+            const def = Math.min(500, Math.max(80, total));
+            slider.value = def;
+            treeViz.threshold = def;
+
+            treeViz.selectedId = null;
+            treeViz.activeNode = null;
+            document.getElementById('tree-preview-grid').innerHTML = '';
+            document.getElementById('tree-node-info').innerHTML = 'Click any node on the tree to inspect its board state. Use the Detail slider to reveal more explored nodes — the solution spine stays visible.';
+
+            layoutTree();
+            updateTreeStats();
+            fitTreeView();
+        }
+
+        function closeSearchTree() {
+            document.getElementById('tree-modal').classList.add('hidden');
+        }
+
+        function updateTreeStats() {
+            let expanded = 0, frontier = 0, goalDepth = null;
+            for (const n of currentTree) {
+                if (n.expanded) expanded++; else frontier++;
+                if (n.goal) goalDepth = n.depth;
+            }
+            const total = currentTree.length;
+            const sol = currentTreeResult && currentTreeResult.success ? currentTreeResult.path.length - 1 : '—';
+            const depthLine = goalDepth != null ? ` · goal depth ${goalDepth}` : '';
+            document.getElementById('tree-stats').innerText =
+                `Created ${total} · Expanded ${expanded} · Frontier ${frontier} · Solution ${sol} steps${depthLine}`;
+        }
+
+        function onTreeDensity(val) {
+            treeViz.threshold = parseInt(val) || 0;
+            document.getElementById('tree-density-label').innerText = `${treeViz.threshold} shown`;
+            layoutTree();
+            if (treeViz.selectedId != null && treeViz.nodePos[treeViz.selectedId] === undefined) {
+                treeViz.selectedId = null;
+                treeViz.activeNode = null;
+                document.getElementById('tree-preview-grid').innerHTML = '';
+                document.getElementById('tree-node-info').innerHTML = 'Click any node on the tree to inspect its board state.';
+            }
+            updateTreeStats();
+            fitTreeView();
+        }
+
+        function showSpineOnly() {
+            const slider = document.getElementById('tree-density');
+            slider.value = 0;
+            onTreeDensity(0);
+        }
+
+        function showAllTree() {
+            const slider = document.getElementById('tree-density');
+            slider.value = Math.max(0, currentTree.length - 1);
+            onTreeDensity(slider.value);
+        }
+
+        function fitTreeView() {
+            const ps = Object.values(treeViz.nodePos);
+            if (ps.length === 0) return;
+            const canvas = document.getElementById('tree-canvas');
+            const R = 12;
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            ps.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+            treeViz.badges.forEach(b => { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x); y1 = Math.max(y1, b.y); });
+            const pad = 50;
+            const bw = (x1 - x0) + 2 * R + pad * 2;
+            const bh = (y1 - y0) + 2 * R + pad * 2;
+            let z = Math.min(canvas.width / bw, canvas.height / bh);
+            z = Math.min(1.5, Math.max(0.03, z));
+            treeViz.zoom = z;
+            treeViz.tx = canvas.width / 2 - ((x0 + x1) / 2) * z;
+            treeViz.ty = canvas.height / 2 - ((y0 + y1) / 2) * z;
+            drawTree();
+        }
+
+        function resetTreeView() {
+            treeViz.zoom = 1;
+            treeViz.tx = 0;
+            treeViz.ty = 0;
+            drawTree();
+        }
+
+        function renderNodePreview(node) {
+            treeViz.activeNode = node;
+            const previewEl = document.getElementById('tree-preview-grid');
+            previewEl.innerHTML = '';
+            node.board.forEach((val, idx) => {
+                const cell = document.createElement('div');
+                let r = Math.floor(idx / 3), c = idx % 3;
+                let cls = "flex items-center justify-center font-bold text-sm mono-font ";
+                if (c !== 2) cls += "border-r border-slate-700 ";
+                if (r !== 2) cls += "border-b border-slate-700 ";
+                if (val === 'x') {
+                    cls += "bg-slate-950 text-slate-800";
+                    cell.innerText = 'x';
+                } else {
+                    cls += val === GOAL_BOARD[idx] ? "bg-slate-900 text-emerald-400" : "bg-slate-900 text-slate-200";
+                    cell.innerText = val;
+                }
+                cell.className = cls;
+                previewEl.appendChild(cell);
+            });
+
+            const info = document.getElementById('tree-node-info');
+            let badges = [];
+            if (node.id === 0) badges.push('<span class="text-indigo-400 font-bold">Start</span>');
+            if (node.goal) badges.push('<span class="text-amber-400 font-bold">Goal</span>');
+            if (node.onSolutionPath) badges.push('<span class="text-emerald-400 font-bold">Solution</span>');
+            if (node.deadEnd) badges.push('<span class="text-rose-400 font-bold">Dead End</span>');
+            if (!node.expanded) badges.push('<span class="text-slate-400 font-bold">Frontier</span>');
+            if (node.expanded && !node.deadEnd) badges.push('<span class="text-slate-300 font-bold">Expanded</span>');
+
+            let html = `<div class="font-mono text-slate-200 mb-1">Node #${node.id} &middot; Depth ${node.depth} &middot; Move ${node.move != null ? node.move : '—'}</div>`;
+            html += `<div class="font-mono text-slate-300 mb-1">g = ${node.g} &middot; h = ${node.h} &middot; f = ${node.f}</div>`;
+            html += `<div class="mb-1">${badges.join(' ')}</div>`;
+            html += `<p class="text-slate-500">${node.reason || ''}</p>`;
+            info.innerHTML = html;
+        }
+
+        function applyTreeNodeState() {
+            const node = treeViz.activeNode;
+            if (!node) return;
+            stopAutoSolve();
+            currentBoard = [...node.board];
+            renderBoard();
+            closeSearchTree();
+        }
+
+        function handleTreeClick(e) {
+            const canvas = document.getElementById('tree-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            const wx = (mx - treeViz.tx) / treeViz.zoom;
+            const wy = (my - treeViz.ty) / treeViz.zoom;
+            let best = null, bestD = 16;
+            for (const idStr in treeViz.nodePos) {
+                const p = treeViz.nodePos[idStr];
+                const d = Math.hypot(p.x - wx, p.y - wy);
+                if (d <= bestD) { bestD = d; best = parseInt(idStr); }
+            }
+            if (best != null) {
+                treeViz.selectedId = best;
+                renderNodePreview(currentTree[best]);
+                drawTree();
+            }
+        }
+
+        function initTreeCanvasHandlers() {
+            const canvas = document.getElementById('tree-canvas');
+            canvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+                const factor = Math.pow(1.0015, -e.deltaY);
+                const nz = Math.min(8, Math.max(0.05, treeViz.zoom * factor));
+                const k = nz / treeViz.zoom;
+                treeViz.tx = mx - (mx - treeViz.tx) * k;
+                treeViz.ty = my - (my - treeViz.ty) * k;
+                treeViz.zoom = nz;
+                drawTree();
+            }, { passive: false });
+
+            canvas.addEventListener('pointerdown', e => {
+                treeViz.dragging = true;
+                treeViz.moved = 0;
+                treeViz.last = { x: e.clientX, y: e.clientY };
+            });
+            canvas.addEventListener('pointermove', e => {
+                if (!treeViz.dragging) return;
+                const dx = e.clientX - treeViz.last.x;
+                const dy = e.clientY - treeViz.last.y;
+                treeViz.last = { x: e.clientX, y: e.clientY };
+                treeViz.moved += Math.abs(dx) + Math.abs(dy);
+                treeViz.tx += dx;
+                treeViz.ty += dy;
+                drawTree();
+            });
+            canvas.addEventListener('pointerup', e => {
+                if (!treeViz.dragging) return;
+                treeViz.dragging = false;
+                if (treeViz.moved < 6) handleTreeClick(e);
+            });
+            canvas.addEventListener('pointerleave', () => { treeViz.dragging = false; });
+        }
+
         // Initialize on load
         window.onload = function() {
+            initTreeCanvasHandlers();
             loadDefaultBoard();
         };
     </script>
