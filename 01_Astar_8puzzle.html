@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate 8-Puzzle Visualizer & Solver</title>
+    <title>Sliding Puzzle AI Visualizer & Solver</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
@@ -23,10 +23,10 @@
 
     <header class="w-full max-w-5xl mx-auto text-center mb-6">
         <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-            8-Puzzle AI Visualizer & Game
+            Sliding Puzzle AI Visualizer & Game
         </h1>
         <p class="text-slate-400 text-sm sm:text-base mt-1">
-            Compare A*, UCS, BFS, and DFS with a search-tree inspector, or play manually with instant A*-based move evaluations!
+            Compare A*, UCS, BFS, and DFS on 3×3 up to 6×6 boards, inspect the search tree, or play manually with instant A*-based move evaluations!
         </p>
     </header>
 
@@ -63,6 +63,17 @@
                         <button onclick="loadDefaultBoard()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all">Default Init</button>
                         <button onclick="loadRandomBoard()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all">Random</button>
                         <button onclick="openEditorModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all text-emerald-400">Custom Edit</button>
+                    </div>
+                </div>
+
+                <!-- Board Size Selector -->
+                <div class="pt-2 border-t border-slate-800">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Board Size</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setGridSize(3)" id="size-3" class="px-2 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow transition-all">3×3</button>
+                        <button onclick="setGridSize(4)" id="size-4" class="px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all">4×4</button>
+                        <button onclick="setGridSize(5)" id="size-5" class="px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all">5×5</button>
+                        <button onclick="setGridSize(6)" id="size-6" class="px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all">6×6</button>
                     </div>
                 </div>
 
@@ -112,15 +123,15 @@
             <div class="w-full flex justify-between items-center mb-4 text-xs text-slate-400 border-b border-slate-800 pb-3">
                 <div class="flex items-center space-x-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span class="font-medium text-slate-300">Goal: 1 2 3 / 4 5 6 / 7 8 x</span>
+                    <span class="font-medium text-slate-300">Goal: <span id="goal-text">1 2 3 / 4 5 6 / 7 8 x</span></span>
                 </div>
                 <div id="game-status-badge" class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
                     Manual Mode Active
                 </div>
             </div>
 
-            <!-- 3x3 Puzzle Board Grid -->
-            <div id="puzzle-grid" class="grid grid-cols-3 gap-3 w-72 h-72 sm:w-80 sm:h-80 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-inner relative my-2">
+            <!-- Puzzle Board Grid -->
+            <div id="puzzle-grid" class="grid w-[320px] h-[320px] bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-inner relative my-2">
                 <!-- Dynamically populated tiles -->
             </div>
 
@@ -148,7 +159,7 @@
     <div id="editor-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
             <h3 class="text-lg font-bold text-slate-200">Custom Board Editor</h3>
-            <p class="text-xs text-slate-400">Enter numbers 1 through 8 and 'x' (or 0) for the empty space separated by spaces or commas.</p>
+            <p id="editor-help" class="text-xs text-slate-400">Grid 3×3: enter numbers 1–8 and 'x' (or 0) for the empty space separated by spaces or commas.</p>
             <textarea id="custom-board-input" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm mono-font text-slate-200 focus:outline-none focus:border-indigo-500 resize-none">5 3 7\n1 x 4\n8 2 6</textarea>
             <div id="editor-error" class="text-xs text-rose-400 hidden"></div>
             <div class="flex justify-end space-x-2 pt-2">
@@ -202,7 +213,7 @@
                 <!-- Node State Preview Sidebar -->
                 <div class="w-full md:w-64 md:flex-shrink-0 bg-slate-900/90 border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col items-center justify-start overflow-y-auto">
                     <h4 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Node Board State</h4>
-                    <div id="tree-preview-grid" class="grid grid-cols-3 w-40 aspect-square bg-slate-950 rounded-xl border-2 border-slate-700 overflow-hidden mb-3">
+                    <div id="tree-preview-grid" class="grid w-40 aspect-square bg-slate-950 rounded-xl border-2 border-slate-700 overflow-hidden mb-3">
                         <!-- Populated on node click -->
                     </div>
                     <div id="tree-node-info" class="text-[11px] text-slate-400 text-center leading-relaxed break-all">Click any node on the tree to inspect its board state. Use the Detail slider to reveal more explored nodes — the solution spine stays visible.</div>
@@ -230,8 +241,50 @@
     </div>
 
     <script>
-        const GOAL_BOARD = [1, 2, 3, 4, 5, 6, 7, 8, 'x'];
-        let currentBoard = [5, 3, 7, 1, 'x', 4, 8, 2, 6];
+        // ------------------------------------------------------------------
+        // Grid-size aware state (N = 3..6)
+        // ------------------------------------------------------------------
+        const SCRAMBLE_DEPTH = { 3: 80, 4: 24, 5: 14, 6: 10 }; // keeps auto-solve tractable
+        let gridSize = 3;
+        let goalBoard = buildGoal(3);
+
+        function buildGoal(n) {
+            const g = [];
+            for (let i = 1; i < n * n; i++) g.push(i);
+            g.push('x');
+            return g;
+        }
+
+        function getSearchBudget() { return 200000; }
+        function getOptimalBudget() {
+            if (gridSize <= 3) return 200000;
+            if (gridSize === 4) return 60000;
+            if (gridSize === 5) return 9000;
+            return 4000;
+        }
+
+        // Generate a solvable scramble (moves from goal always preserve solvability).
+        function scrambleBoard(n, deterministic) {
+            let b = buildGoal(n);
+            let seed = n * 7919 + 12345;
+            const depth = SCRAMBLE_DEPTH[n] || 20;
+            for (let i = 0; i < depth; i++) {
+                const idx = b.indexOf('x');
+                const r = Math.floor(idx / n), c = idx % n;
+                const opts = [];
+                if (r > 0) opts.push(-n);
+                if (r < n - 1) opts.push(n);
+                if (c > 0) opts.push(-1);
+                if (c < n - 1) opts.push(1);
+                if (deterministic) seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                const d = deterministic ? opts[seed % opts.length] : opts[(Math.random() * opts.length) | 0];
+                const ni = idx + d;
+                [b[idx], b[ni]] = [b[ni], b[idx]];
+            }
+            return b;
+        }
+
+        let currentBoard = [...goalBoard];
         let initialBoard = [...currentBoard];
         let gameMode = 'manual'; // 'manual' or 'auto'
         let currentAlgo = 'astar';
@@ -316,44 +369,48 @@
         }
 
         function getManhattanDistance(board) {
+            const n = gridSize;
             let dist = 0;
-            for (let i = 0; i < 9; i++) {
-                let val = board[i];
+            for (let i = 0; i < board.length; i++) {
+                const val = board[i];
                 if (val === 'x') continue;
-                let targetIdx = GOAL_BOARD.indexOf(val);
-                let curRow = Math.floor(i / 3);
-                let curCol = i % 3;
-                let tgtRow = Math.floor(targetIdx / 3);
-                let tgtCol = targetIdx % 3;
+                const targetIdx = goalBoard.indexOf(val);
+                const curRow = Math.floor(i / n), curCol = i % n;
+                const tgtRow = Math.floor(targetIdx / n), tgtCol = targetIdx % n;
                 dist += Math.abs(curRow - tgtRow) + Math.abs(curCol - tgtCol);
             }
             return dist;
         }
 
+        // Standard sliding-puzzle parity rule:
+        //  - odd grid:   solvable iff inversion count is even
+        //  - even grid:  solvable iff (inversions + blank row from bottom) is odd
         function isSolvable(board) {
+            const n = gridSize;
+            const flat = board.filter(x => x !== 'x');
             let inv = 0;
-            let flat = board.filter(x => x !== 'x');
             for (let i = 0; i < flat.length - 1; i++) {
                 for (let j = i + 1; j < flat.length; j++) {
                     if (flat[i] > flat[j]) inv++;
                 }
             }
-            return inv % 2 === 0;
+            if (n % 2 === 1) return inv % 2 === 0;
+            const blankRowFromBottom = n - Math.floor(board.indexOf('x') / n);
+            return (inv + blankRowFromBottom) % 2 === 1;
         }
 
         function getNeighbors(board) {
-            let neighbors = [];
-            let emptyIdx = board.indexOf('x');
-            let row = Math.floor(emptyIdx / 3);
-            let col = emptyIdx % 3;
-            let deltas = [ {r: -1, c: 0}, {r: 1, c: 0}, {r: 0, c: -1}, {r: 0, c: 1} ];
+            const n = gridSize;
+            const neighbors = [];
+            const emptyIdx = board.indexOf('x');
+            const row = Math.floor(emptyIdx / n), col = emptyIdx % n;
+            const deltas = [ {r: -1, c: 0}, {r: 1, c: 0}, {r: 0, c: -1}, {r: 0, c: 1} ];
 
-            for (let d of deltas) {
-                let nr = row + d.r;
-                let nc = col + d.c;
-                if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-                    let nIdx = nr * 3 + nc;
-                    let newBoard = [...board];
+            for (const d of deltas) {
+                const nr = row + d.r, nc = col + d.c;
+                if (nr >= 0 && nr < n && nc >= 0 && nc < n) {
+                    const nIdx = nr * n + nc;
+                    const newBoard = [...board];
                     newBoard[emptyIdx] = newBoard[nIdx];
                     newBoard[nIdx] = 'x';
                     neighbors.push({ board: newBoard, movedTile: newBoard[emptyIdx] });
@@ -363,7 +420,52 @@
         }
 
         function boardsEqual(b1, b2) {
-            return b1.every((val, idx) => val === b2[idx]);
+            return b1.length === b2.length && b1.every((val, idx) => val === b2[idx]);
+        }
+
+        /* ------------------------------------------------------------------
+           Min-heap for A* / UCS so the frontier scales to larger grids.
+           Ties are broken by insertion order (stable, BFS-like among ties).
+           ------------------------------------------------------------------ */
+        function heapLess(a, b) {
+            if (a.priority !== b.priority) return a.priority < b.priority;
+            return a.seq < b.seq;
+        }
+        class MinHeap {
+            constructor() { this.items = []; this.seq = 0; }
+            get length() { return this.items.length; }
+            push(x) {
+                if (x.seq === undefined) x.seq = this.seq++;
+                const a = this.items;
+                a.push(x);
+                let i = a.length - 1;
+                while (i > 0) {
+                    const p = (i - 1) >> 1;
+                    if (heapLess(a[p], a[i])) break;
+                    const t = a[p]; a[p] = a[i]; a[i] = t;
+                    i = p;
+                }
+            }
+            pop() {
+                const a = this.items;
+                const top = a[0];
+                const last = a.pop();
+                if (a.length > 0) {
+                    a[0] = last;
+                    let i = 0;
+                    for (;;) {
+                        const n = a.length;
+                        const l = i * 2 + 1, r = i * 2 + 2;
+                        let m = i;
+                        if (l < n && heapLess(a[l], a[m])) m = l;
+                        if (r < n && heapLess(a[r], a[m])) m = r;
+                        if (m === i) break;
+                        const t = a[m]; a[m] = a[i]; a[i] = t;
+                        i = m;
+                    }
+                }
+                return top;
+            }
         }
 
         /* ------------------------------------------------------------------
@@ -405,9 +507,10 @@
             }
         }
 
-        function solvePuzzle(startBoard, algo, captureTree) {
-            if (algo === 'dfs') return solvePuzzleDFS(startBoard, captureTree);
+        function solvePuzzle(startBoard, algo, captureTree, maxNodes) {
+            if (algo === 'dfs') return solvePuzzleDFS(startBoard, captureTree, maxNodes);
 
+            const budget = maxNodes != null ? maxNodes : getSearchBudget();
             let startTime = performance.now();
             let startBoardCopy = [...startBoard];
             let startH = getManhattanDistance(startBoardCopy);
@@ -423,47 +526,46 @@
                 board: startBoardCopy,
                 cost: 0,
                 heuristic: startH,
+                priority: algo === 'astar' ? startH : 0,
                 path: [],
                 moveList: [],
                 treeId: 0
             };
-            startState.priority = algo === 'astar' ? startState.cost + startState.heuristic :
-                                  algo === 'ucs' ? startState.cost : 0;
 
-            let frontier = [startState];
-            let closed = new Set();      // fully expanded boards
+            let heap = null, bfsQ = null, bfsIdx = 0;
+            if (algo === 'bfs') {
+                bfsQ = [startState];
+            } else {
+                heap = new MinHeap();
+                heap.push(startState);
+            }
+
+            let closed = new Set();
             let inFrontier = new Set([startBoardCopy.join(',')]);
             let exploredNodes = 0;
             let budgetExceeded = false;
-            // The 8-puzzle has 181,440 reachable states; this cap guarantees a
-            // full exploration of every reachable state finishes cleanly.
-            const MAX_NODES = 200000;
 
-            while (frontier.length > 0) {
-                let currentIndex = 0;
-                if (algo === 'astar' || algo === 'ucs') {
-                    let minPrio = frontier[0].priority;
-                    for (let i = 1; i < frontier.length; i++) {
-                        if (frontier[i].priority < minPrio) {
-                            minPrio = frontier[i].priority;
-                            currentIndex = i;
-                        }
-                    }
-                } else if (algo === 'bfs') {
-                    currentIndex = 0; // FIFO
+            while (true) {
+                let current;
+                if (algo === 'bfs') {
+                    if (bfsIdx >= bfsQ.length) break;
+                    current = bfsQ[bfsIdx++];
+                } else {
+                    if (heap.length === 0) break;
+                    current = heap.pop();
                 }
 
-                let current = frontier.splice(currentIndex, 1)[0];
                 let boardKey = current.board.join(',');
                 if (closed.has(boardKey)) continue;
                 inFrontier.delete(boardKey);
                 closed.add(boardKey);
                 exploredNodes++;
+                if (exploredNodes > budget) { budgetExceeded = true; break; }
 
                 let curNode = tree ? tree[current.treeId] : null;
                 if (curNode) curNode.expanded = true;
 
-                if (boardsEqual(current.board, GOAL_BOARD)) {
+                if (boardsEqual(current.board, goalBoard)) {
                     goalTreeId = current.treeId;
                     let res = {
                         success: true,
@@ -481,32 +583,31 @@
 
                 for (let neighbor of getNeighbors(current.board)) {
                     let nKey = neighbor.board.join(',');
-                    if (!closed.has(nKey) && !inFrontier.has(nKey)) {
-                        inFrontier.add(nKey);
-                        let newCost = current.cost + 1;
-                        let nHeuristic = getManhattanDistance(neighbor.board);
-                        let priority = algo === 'astar' ? newCost + nHeuristic :
-                                       algo === 'ucs' ? newCost : 0;
-                        let newState = {
-                            board: neighbor.board,
-                            cost: newCost,
-                            heuristic: nHeuristic,
-                            priority: priority,
-                            path: [...current.path, current.board],
-                            moveList: [...current.moveList, neighbor.movedTile],
-                            treeId: tree ? nextId : -1
-                        };
-                        if (tree && curNode) {
-                            let childNode = makeTreeNode(nextId, curNode.id, curNode.depth + 1, neighbor.board, neighbor.movedTile, newCost, nHeuristic, priority);
-                            tree.push(childNode);
-                            curNode.children.push(nextId);
-                            nextId++;
-                        }
-                        frontier.push(newState);
-                    }
-                }
+                    if (closed.has(nKey) || inFrontier.has(nKey)) continue;
+                    inFrontier.add(nKey);
 
-                if (exploredNodes > MAX_NODES) { budgetExceeded = true; break; }
+                    let newCost = current.cost + 1;
+                    let nHeuristic = getManhattanDistance(neighbor.board);
+                    let priority = algo === 'astar' ? newCost + nHeuristic :
+                                   algo === 'ucs' ? newCost : 0;
+                    let newState = {
+                        board: neighbor.board,
+                        cost: newCost,
+                        heuristic: nHeuristic,
+                        priority: priority,
+                        path: [...current.path, current.board],
+                        moveList: [...current.moveList, neighbor.movedTile],
+                        treeId: tree ? nextId : -1
+                    };
+                    if (tree && curNode) {
+                        let childNode = makeTreeNode(nextId, curNode.id, curNode.depth + 1, neighbor.board, neighbor.movedTile, newCost, nHeuristic, priority);
+                        tree.push(childNode);
+                        curNode.children.push(nextId);
+                        nextId++;
+                    }
+                    if (algo === 'bfs') bfsQ.push(newState);
+                    else heap.push(newState);
+                }
             }
 
             if (tree) { markSolutionPath(tree, goalTreeId); finalizeTree(tree, goalTreeId); }
@@ -522,16 +623,14 @@
             };
         }
 
-        /* DFS with explicit backtracking.
+        /* DFS with explicit backtracking (grid-size aware).
            - Stores every visited node (visited set marked at entry) so a node
              is never re-entered.
            - If a node has no valid (unvisited) neighbor, we backtrack to the
              previous node on the stack. */
-        function solvePuzzleDFS(startBoard, captureTree) {
+        function solvePuzzleDFS(startBoard, captureTree, maxNodes) {
             const startTime = performance.now();
-            // The 8-puzzle has 181,440 reachable states; DFS with a visited set
-            // touches each state at most once, so this cap always completes.
-            const MAX_NODES = 200000;
+            const budget = maxNodes != null ? maxNodes : getSearchBudget();
             let exploredNodes = 0;
             let budgetExceeded = false;
             let solved = false;
@@ -559,7 +658,7 @@
                 const frame = stack[stack.length - 1];
                 const node = tree ? tree[frame.nodeId] : null;
 
-                if (boardsEqual(frame.board, GOAL_BOARD)) {
+                if (boardsEqual(frame.board, goalBoard)) {
                     solved = true;
                     goalTreeId = frame.nodeId;
                     break;
@@ -590,7 +689,7 @@
 
                 visited.add(nKey);
                 exploredNodes++;
-                if (exploredNodes > MAX_NODES) { budgetExceeded = true; break; }
+                if (exploredNodes > budget) { budgetExceeded = true; break; }
 
                 const childId = tree ? nextId : -1;
                 if (tree && node) {
@@ -618,26 +717,33 @@
         }
 
         function optimalStepsFrom(board) {
-            const res = solvePuzzle(board, 'astar', false);
+            const res = solvePuzzle(board, 'astar', false, getOptimalBudget());
             return res.success ? res.path.length - 1 : Infinity;
         }
 
         function renderBoard(boardToRender = currentBoard) {
             const grid = document.getElementById('puzzle-grid');
+            const n = gridSize;
             grid.innerHTML = '';
-            
-            let emptyIdx = boardToRender.indexOf('x');
+            grid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+            grid.style.gap = `${n > 3 ? 6 : 10}px`;
+
+            const emptyIdx = boardToRender.indexOf('x');
+            const fontSize = Math.max(11, Math.round(70 / n));
 
             boardToRender.forEach((val, idx) => {
                 const tile = document.createElement('div');
-                tile.className = `tile-anim flex items-center justify-center rounded-xl font-bold text-2xl sm:text-3xl mono-font select-none`;
+                tile.style.fontSize = fontSize + 'px';
+                tile.className = `tile-anim flex items-center justify-center rounded-lg font-bold mono-font select-none`;
                 
                 if (val === 'x') {
                     tile.className += ` bg-slate-900/40 border border-dashed border-slate-800 text-transparent`;
                     tile.innerText = '';
                 } else {
-                    let isGoalMatch = val === GOAL_BOARD[idx];
-                    let isAdjacentToEmpty = Math.abs(Math.floor(idx / 3) - Math.floor(emptyIdx / 3)) + Math.abs((idx % 3) - (emptyIdx % 3)) === 1;
+                    const isGoalMatch = val === goalBoard[idx];
+                    const thisR = Math.floor(idx / n), thisC = idx % n;
+                    const eR = Math.floor(emptyIdx / n), eC = emptyIdx % n;
+                    const isAdjacentToEmpty = Math.abs(thisR - eR) + Math.abs(thisC - eC) === 1;
 
                     if (gameMode === 'manual' && isAdjacentToEmpty) {
                         tile.className += ` bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-lg shadow-indigo-900/40 transform hover:scale-105`;
@@ -651,6 +757,15 @@
                 }
                 grid.appendChild(tile);
             });
+        }
+
+        function updateGoalText() {
+            const rows = [];
+            for (let i = 0; i < gridSize; i++) {
+                rows.push(goalBoard.slice(i * gridSize, (i + 1) * gridSize).join(' '));
+            }
+            const el = document.getElementById('goal-text');
+            if (el) el.innerText = rows.join(' / ');
         }
 
         function setMode(mode) {
@@ -714,6 +829,29 @@
             prepareAutoSolve();
         }
 
+        function setGridSize(n) {
+            gridSize = n;
+            goalBoard = buildGoal(n);
+            stopAutoSolve();
+            closeSearchTree();
+
+            [3, 4, 5, 6].forEach(s => {
+                const b = document.getElementById(`size-${s}`);
+                if (!b) return;
+                if (s === n) {
+                    b.className = "px-2 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow transition-all";
+                } else {
+                    b.className = "px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all";
+                }
+            });
+
+            updateGoalText();
+            setTreeButtonEnabled(false);
+            solutionPath = [];
+            solutionIndex = 0;
+            loadDefaultBoard();
+        }
+
         function makeManualMove(tileIdx) {
             let emptyIdx = currentBoard.indexOf('x');
             // Swap tile with empty space
@@ -730,14 +868,15 @@
             let delta = newManhattan - prevManhattan; // negative is closer to goal!
 
             // A* ground truth: optimal steps remaining before / after the move
+            // (budgeted so large grids don't freeze the UI).
             let prevOpt = lastOptimalSteps;
-            let astarRes = solvePuzzle(newBoard, 'astar', false);
+            let astarRes = solvePuzzle(newBoard, 'astar', false, getOptimalBudget());
             let newOpt = astarRes.success ? astarRes.path.length - 1 : Infinity;
             lastOptimalSteps = newOpt;
 
-            // Check if loop / backtracking (F grade)
             let isLoop = boardHistory.some(b => boardsEqual(b, newBoard));
             let diff = Number.isFinite(prevOpt) && Number.isFinite(newOpt) ? newOpt - prevOpt : NaN;
+            let useOptimal = Number.isFinite(diff);
 
             let grade = 'B';
             let title = 'Meh move';
@@ -749,25 +888,36 @@
                 title = 'Loop Move / Revisit!';
                 desc = 'You have visited this exact board configuration before — avoid revisits.';
                 badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-            } else if (diff === -1) {
+            } else if (useOptimal && diff === -1) {
                 grade = 'S';
                 title = 'Optimal Move!';
                 desc = `This move lies on a shortest solution path (${newOpt} steps remain).`;
                 badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-            } else if (diff === 0 && delta < 0) {
+            } else if (useOptimal && diff === 0 && delta < 0) {
                 grade = 'A';
                 title = 'Good Move';
                 desc = `Closer by Manhattan distance, but not the absolute shortest route (${newOpt} steps remain).`;
                 badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
-            } else if (diff === 0) {
+            } else if (useOptimal && diff === 0) {
                 grade = 'B';
                 title = 'Neutral Move';
                 desc = `Optimal distance unchanged — you missed the optimal move (${newOpt} steps remain).`;
                 badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+            } else if (delta < 0) {
+                // Fallback when the A* budget is exceeded on large grids.
+                grade = 'A';
+                title = 'Good Move';
+                desc = 'Search budget exceeded, so grading is heuristic: the Manhattan distance decreased.';
+                badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+            } else if (delta === 0) {
+                grade = 'B';
+                title = 'Neutral Move';
+                desc = 'Search budget exceeded, so grading is heuristic: the Manhattan distance is unchanged.';
+                badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
             } else {
                 grade = 'C';
                 title = 'Suboptimal Move';
-                desc = `This move adds a step to the optimal solution (${newOpt} steps remain).`;
+                desc = 'Search budget exceeded, so grading is heuristic: the Manhattan distance increased.';
                 badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-500/30';
             }
 
@@ -786,7 +936,7 @@
 
             renderBoard();
 
-            if (boardsEqual(currentBoard, GOAL_BOARD)) {
+            if (boardsEqual(currentBoard, goalBoard)) {
                 playSound('success');
                 document.getElementById('feedback-title').innerText = "Puzzle Solved!";
                 document.getElementById('feedback-desc').innerText = `Completed in ${moveCount} moves! Solve via the shortest route to score an S.`;
@@ -820,7 +970,8 @@
                     document.getElementById('stat-moves').innerText = `0 / ${res.path.length - 1}`;
                     document.getElementById('stat-meta').innerText = `${res.explored} nodes`;
                 } else {
-                    document.getElementById('solution-status').innerText = "No solution / Limit exceeded";
+                    const hint = res.budgetExceeded ? "Search budget reached" : "No solution";
+                    document.getElementById('solution-status').innerText = `${hint} (${res.explored} nodes)`;
                     document.getElementById('play-pause-btn').disabled = true;
                     document.getElementById('play-pause-btn').className = "px-4 py-2.5 bg-slate-800 text-slate-500 font-semibold rounded-xl text-sm transition-all";
                     document.getElementById('stat-meta').innerText = `${res.explored} nodes`;
@@ -917,7 +1068,7 @@
                 document.getElementById('opt-steps').innerText = Number.isFinite(lastOptimalSteps) ? `${lastOptimalSteps} steps` : '—';
                 document.getElementById('feedback-desc').innerText = Number.isFinite(lastOptimalSteps)
                     ? `A* finds an optimal ${lastOptimalSteps}-step solution — try to match it!`
-                    : "Click tiles adjacent to the empty space.";
+                    : (gridSize > 4 ? "Huge state space — grading uses heuristic fallback after a short search budget." : "Click tiles adjacent to the empty space.");
             } else {
                 document.getElementById('opt-steps').innerText = '—';
             }
@@ -926,35 +1077,29 @@
         }
 
         function loadDefaultBoard() {
-            initialBoard = [7,2,4,5,'x',6,8,3,1];
+            if (gridSize === 3) {
+                initialBoard = [7, 2, 4, 5, 'x', 6, 8, 3, 1];
+            } else {
+                initialBoard = scrambleBoard(gridSize, true);
+            }
             setMode(gameMode);
         }
 
         function loadRandomBoard() {
-            // Generate valid solvable random permutation
-            let board = [...GOAL_BOARD];
-            for (let i = 0; i < 100; i++) {
-                let neighbors = getNeighbors(board);
-                board = neighbors[Math.floor(Math.random() * neighbors.length)].board;
-            }
-            if (!isSolvable(board)) {
-                // Swap two elements to ensure solvability
-                let idx1 = board.findIndex(x => x !== 'x' && x !== 1);
-                let idx2 = board.findIndex(x => x !== 'x' && x !== 2 && x !== 1);
-                let temp = board[idx1];
-                board[idx1] = board[idx2];
-                board[idx2] = temp;
-            }
-            initialBoard = board;
+            initialBoard = scrambleBoard(gridSize, false);
             setMode(gameMode);
         }
 
         function openEditorModal() {
+            const n = gridSize;
             document.getElementById('editor-modal').classList.remove('hidden');
+            document.getElementById('custom-board-input').rows = n;
             document.getElementById('custom-board-input').value = initialBoard.reduce((acc, val, idx) => {
-                acc += val + (idx % 3 === 2 ? '\n' : ' ');
+                acc += val + (idx % n === n - 1 ? '\n' : ' ');
                 return acc;
             }, '').trim();
+            document.getElementById('editor-help').innerText =
+                `Grid ${n}×${n}: enter numbers 1–${n * n - 1} and 'x' (or 0) for the empty space, ${n} per line, separated by spaces or commas.`;
         }
 
         function closeEditorModal() {
@@ -963,30 +1108,37 @@
         }
 
         function applyCustomBoard() {
+            const n = gridSize;
+            const total = n * n;
             let text = document.getElementById('custom-board-input').value;
             let tokens = text.replace(/,/g, ' ').trim().split(/\s+/);
             
             let errEl = document.getElementById('editor-error');
-            if (tokens.length !== 9) {
-                errEl.innerText = "Error: Exactly 9 values are required.";
+            if (text.trim() === '') {
+                errEl.innerText = "Error: Board is empty.";
                 errEl.classList.remove('hidden');
+                return;
+            }
+            if (tokens.length !== total) {
+                errEl.innerText = `Error: Exactly ${total} values are required for a ${n}×${n} board.`;
+                errEl.classList.add('hidden');
                 return;
             }
 
             let newBoard = tokens.map(t => (t === '0' || t.toLowerCase() === 'x') ? 'x' : parseInt(t, 10));
             let counts = {};
             for (let t of newBoard) {
-                if (t !== 'x' && (isNaN(t) || t < 1 || t > 8)) {
-                    errEl.innerText = "Error: Values must be numbers 1-8 and 'x'.";
-                    errEl.classList.remove('hidden');
+                if (t !== 'x' && (isNaN(t) || t < 1 || t > total - 1)) {
+                    errEl.innerText = `Error: Values must be numbers 1-${total - 1} and 'x'.`;
+                    errEl.classList.add('hidden');
                     return;
                 }
                 counts[t] = (counts[t] || 0) + 1;
             }
 
-            for (let i = 1; i <= 8; i++) {
+            for (let i = 1; i <= total - 1; i++) {
                 if (counts[i] !== 1 || counts['x'] !== 1) {
-                    errEl.innerText = "Error: Must contain numbers 1 through 8 and one 'x' exactly once.";
+                    errEl.innerText = `Error: Must contain numbers 1 through ${total - 1} and one 'x' exactly once.`;
                     errEl.classList.remove('hidden');
                     return;
                 }
@@ -1005,8 +1157,8 @@
 
         /* ------------------------------------------------------------------
            Search Tree Inspector
-           Clever rendering strategy: the 8-puzzle search tree can hold well
-           over 100k nodes, so we never draw everything blindly. Instead:
+           Clever rendering strategy: the search tree can hold hundreds of
+           thousands of nodes, so we never draw everything blindly. Instead:
              - The solution spine is ALWAYS drawn.
              - A "Detail" slider reveals progressively more nodes in discovery
                order (id <= threshold).
@@ -1211,7 +1363,7 @@
         function openSearchTree() {
             if (!currentTree || currentTree.length === 0) return;
             document.getElementById('tree-modal').classList.remove('hidden');
-            document.getElementById('tree-algo-label').innerText = currentAlgo.toUpperCase() + ' (A*/UCS/BFS/DFS)';
+            document.getElementById('tree-algo-label').innerText = currentAlgo.toUpperCase() + ' · ' + gridSize + 'x' + gridSize;
 
             sizeTreeCanvas();
 
@@ -1304,19 +1456,24 @@
 
         function renderNodePreview(node) {
             treeViz.activeNode = node;
+            const n = gridSize;
             const previewEl = document.getElementById('tree-preview-grid');
             previewEl.innerHTML = '';
+            previewEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+            const fontSize = Math.max(8, Math.round(44 / n));
+
             node.board.forEach((val, idx) => {
                 const cell = document.createElement('div');
-                let r = Math.floor(idx / 3), c = idx % 3;
-                let cls = "flex items-center justify-center font-bold text-sm mono-font ";
-                if (c !== 2) cls += "border-r border-slate-700 ";
-                if (r !== 2) cls += "border-b border-slate-700 ";
+                cell.style.fontSize = fontSize + 'px';
+                let r = Math.floor(idx / n), c = idx % n;
+                let cls = "flex items-center justify-center font-bold mono-font ";
+                if (c !== n - 1) cls += "border-r border-slate-700 ";
+                if (r !== n - 1) cls += "border-b border-slate-700 ";
                 if (val === 'x') {
                     cls += "bg-slate-950 text-slate-800";
                     cell.innerText = 'x';
                 } else {
-                    cls += val === GOAL_BOARD[idx] ? "bg-slate-900 text-emerald-400" : "bg-slate-900 text-slate-200";
+                    cls += val === goalBoard[idx] ? "bg-slate-900 text-emerald-400" : "bg-slate-900 text-slate-200";
                     cell.innerText = val;
                 }
                 cell.className = cls;
@@ -1408,6 +1565,7 @@
         // Initialize on load
         window.onload = function() {
             initTreeCanvasHandlers();
+            updateGoalText();
             loadDefaultBoard();
         };
     </script>
