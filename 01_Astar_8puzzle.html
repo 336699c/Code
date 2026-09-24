@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate 8-Puzzle Visualizer & Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono-font { font-family: 'JetBrains Mono', monospace; }
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+        .tile-anim { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 sm:p-6">
+
+    <header class="w-full max-w-5xl mx-auto text-center mb-6">
+        <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            8-Puzzle AI Visualizer & Game
+        </h1>
+        <p class="text-slate-400 text-sm sm:text-base mt-1">
+            Compare A*, UCS, BFS, and DFS or play manually with instant move evaluations!
+        </p>
+    </header>
+
+    <main class="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+        
+        <!-- Left Panel: Controls & Mode Selection -->
+        <section class="lg:col-span-5 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4">
+            
+            <div class="space-y-4">
+                <!-- Mode Switcher -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Game Mode</label>
+                    <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                        <button id="mode-manual" onclick="setMode('manual')" class="py-2 text-sm font-medium rounded-lg transition-all bg-indigo-600 text-white shadow-lg">Manual Play</button>
+                        <button id="mode-auto" onclick="setMode('auto')" class="py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white">Auto Solve</button>
+                    </div>
+                </div>
+
+                <!-- Algorithm Selector (Auto Mode Only) -->
+                <div id="algo-container" class="space-y-2 hidden">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Search Algorithm</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="setAlgorithm('astar')" id="btn-astar" class="p-2.5 text-xs font-semibold rounded-xl border border-indigo-500/50 bg-indigo-500/10 text-indigo-300 transition-all">A* Search</button>
+                        <button onclick="setAlgorithm('ucs')" id="btn-ucs" class="p-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 transition-all">UCS</button>
+                        <button onclick="setAlgorithm('bfs')" id="btn-bfs" class="p-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 transition-all">BFS</button>
+                        <button onclick="setAlgorithm('dfs')" id="btn-dfs" class="p-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 transition-all">DFS</button>
+                    </div>
+                </div>
+
+                <!-- Presets & Board Actions -->
+                <div class="space-y-2 pt-2 border-t border-slate-800">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Board Setup</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="loadDefaultBoard()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all">Default Init</button>
+                        <button onclick="loadRandomBoard()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all">Random</button>
+                        <button onclick="openEditorModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl transition-all text-emerald-400">Custom Edit</button>
+                    </div>
+                </div>
+
+                <!-- Auto Play Controls (Auto Mode Only) -->
+                <div id="auto-controls" class="space-y-3 pt-2 border-t border-slate-800 hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Playback</span>
+                        <span id="solution-status" class="text-xs text-emerald-400 font-medium">Ready</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="startAutoSolve()" id="solve-btn" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-emerald-900/30">Solve</button>
+                        <button onclick="togglePlayPause()" id="play-pause-btn" disabled class="px-4 py-2.5 bg-slate-800 text-slate-500 font-semibold rounded-xl text-sm transition-all">Play</button>
+                        <button onclick="resetAutoPlayback()" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all" title="Reset">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <span>Speed</span>
+                            <span id="speed-label">300ms</span>
+                        </div>
+                        <input type="range" min="50" max="1000" step="50" value="300" id="speed-slider" oninput="updateSpeed(this.value)" class="w-full accent-emerald-500 bg-slate-950 rounded-lg h-2 cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Box -->
+            <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800/60 grid grid-cols-2 gap-3 text-center">
+                <div>
+                    <div class="text-xs text-slate-400">Moves</div>
+                    <div id="stat-moves" class="text-xl font-bold mono-font text-indigo-400">0</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400">Time / Explored</div>
+                    <div id="stat-meta" class="text-xl font-bold mono-font text-cyan-400">0.0s</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Board Canvas & Feedback -->
+        <section class="lg:col-span-7 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-between relative overflow-hidden">
+            
+            <!-- Goal state preview indicator -->
+            <div class="w-full flex justify-between items-center mb-4 text-xs text-slate-400 border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="font-medium text-slate-300">Goal: 1 2 3 / 4 5 6 / 7 8 x</span>
+                </div>
+                <div id="game-status-badge" class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                    Manual Mode Active
+                </div>
+            </div>
+
+            <!-- 3x3 Puzzle Board Grid -->
+            <div id="puzzle-grid" class="grid grid-cols-3 gap-3 w-72 h-72 sm:w-80 sm:h-80 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-inner relative my-2">
+                <!-- Dynamically populated tiles -->
+            </div>
+
+            <!-- Manual Move Rating Feedback Display -->
+            <div id="feedback-panel" class="w-full mt-4 bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between transition-all">
+                <div class="flex items-center space-x-3">
+                    <div id="grade-badge" class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-lg mono-font text-slate-400">?</div>
+                    <div>
+                        <div id="feedback-title" class="text-sm font-bold text-slate-300">Make your first move!</div>
+                        <div id="feedback-desc" class="text-xs text-slate-400">Click tiles adjacent to the empty space.</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Manhattan Delta</div>
+                    <div id="manhattan-delta" class="text-sm font-bold mono-font text-slate-400">Δ 0</div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <div id="editor-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <h3 class="text-lg font-bold text-slate-200">Custom Board Editor</h3>
+            <p class="text-xs text-slate-400">Enter numbers 1 through 8 and 'x' (or 0) for the empty space separated by spaces or commas.</p>
+            <textarea id="custom-board-input" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm mono-font text-slate-200 focus:outline-none focus:border-indigo-500 resize-none">5 3 7\n1 x 4\n8 2 6</textarea>
+            <div id="editor-error" class="text-xs text-rose-400 hidden"></div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closeEditorModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl transition-all">Cancel</button>
+                <button onclick="applyCustomBoard()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white transition-all shadow-lg shadow-indigo-900/30">Apply & Validate</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GOAL_BOARD = [1, 2, 3, 4, 5, 6, 7, 8, 'x'];
+        let currentBoard = [5, 3, 7, 1, 'x', 4, 8, 2, 6];
+        let initialBoard = [...currentBoard];
+        let gameMode = 'manual'; // 'manual' or 'auto'
+        let currentAlgo = 'astar';
+        
+        let moveCount = 0;
+        let boardHistory = []; // stores past boards for loop / F grade detection
+        let historyManhattan = []; // tracks manhattan distances of past boards
+
+        // Auto solve state
+        let solutionPath = [];
+        let solutionIndex = 0;
+        let isPlayingAuto = false;
+        let autoTimer = null;
+        let autoSpeed = 300;
+        let exploredCount = 0;
+        let solveStartTime = 0;
+
+        // Web Audio API Synthesizer
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'tile') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(350, now);
+                    osc.frequency.exponentialRampToValueAtTime(550, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'success') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(554.37, now + 0.1);
+                    osc.frequency.setValueAtTime(659.25, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'error') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.setValueAtTime(130, now + 0.1);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                }
+            } catch (e) {
+                console.warn("Audio playback prevented or failed", e);
+            }
+        }
+
+        function getManhattanDistance(board) {
+            let dist = 0;
+            for (let i = 0; i < 9; i++) {
+                let val = board[i];
+                if (val === 'x') continue;
+                let targetIdx = GOAL_BOARD.indexOf(val);
+                let curRow = Math.floor(i / 3);
+                let curCol = i % 3;
+                let tgtRow = Math.floor(targetIdx / 3);
+                let tgtCol = targetIdx % 3;
+                dist += Math.abs(curRow - tgtRow) + Math.abs(curCol - tgtCol);
+            }
+            return dist;
+        }
+
+        function isSolvable(board) {
+            let inv = 0;
+            let flat = board.filter(x => x !== 'x');
+            for (let i = 0; i < flat.length - 1; i++) {
+                for (let j = i + 1; j < flat.length; j++) {
+                    if (flat[i] > flat[j]) inv++;
+                }
+            }
+            return inv % 2 === 0;
+        }
+
+        function getNeighbors(board) {
+            let neighbors = [];
+            let emptyIdx = board.indexOf('x');
+            let row = Math.floor(emptyIdx / 3);
+            let col = emptyIdx % 3;
+            let deltas = [ {r: -1, c: 0}, {r: 1, c: 0}, {r: 0, c: -1}, {r: 0, c: 1} ];
+
+            for (let d of deltas) {
+                let nr = row + d.r;
+                let nc = col + d.c;
+                if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+                    let nIdx = nr * 3 + nc;
+                    let newBoard = [...board];
+                    newBoard[emptyIdx] = newBoard[nIdx];
+                    newBoard[nIdx] = 'x';
+                    neighbors.push({ board: newBoard, movedTile: newBoard[emptyIdx] });
+                }
+            }
+            return neighbors;
+        }
+
+        function boardsEqual(b1, b2) {
+            return b1.every((val, idx) => val === b2[idx]);
+        }
+
+        /* STREAMING_CHUNK:Implementing AI search algorithms (A*, UCS, BFS, DFS)... */
+        function solvePuzzle(startBoard, algo) {
+            let startTime = performance.now();
+            let startState = {
+                board: startBoard,
+                cost: 0,
+                heuristic: getManhattanDistance(startBoard),
+                path: [],
+                moveList: []
+            };
+            startState.priority = algo === 'astar' ? startState.cost + startState.heuristic :
+                                  algo === 'ucs' ? startState.cost : 0;
+
+            let frontier = [startState];
+            let visited = new Set();
+            let exploredNodes = 0;
+
+            while (frontier.length > 0) {
+                // Select node based on algorithm strategy
+                let currentIndex = 0;
+                if (algo === 'astar' || algo === 'ucs') {
+                    let minPrio = frontier[0].priority;
+                    for (let i = 1; i < frontier.length; i++) {
+                        if (frontier[i].priority < minPrio) {
+                            minPrio = frontier[i].priority;
+                            currentIndex = i;
+                        }
+                    }
+                } else if (algo === 'bfs') {
+                    currentIndex = 0; // FIFO
+                } else if (algo === 'dfs') {
+                    currentIndex = frontier.length - 1; // LIFO
+                }
+
+                let current = frontier.splice(currentIndex, 1)[0];
+                exploredNodes++;
+
+                let boardKey = current.board.join(',');
+                if (visited.has(boardKey)) continue;
+                visited.add(boardKey);
+
+                if (boardsEqual(current.board, GOAL_BOARD)) {
+                    let endTime = performance.now();
+                    return {
+                        success: true,
+                        path: [...current.path, current.board],
+                        moves: current.moveList,
+                        explored: exploredNodes,
+                        time: ((endTime - startTime)).toFixed(1)
+                    };
+                }
+
+                for (let neighbor of getNeighbors(current.board)) {
+                    let nKey = neighbor.board.join(',');
+                    if (!visited.has(nKey)) {
+                        let newCost = current.cost + 1;
+                        let nHeuristic = getManhattanDistance(neighbor.board);
+                        let priority = algo === 'astar' ? newCost + nHeuristic :
+                                       algo === 'ucs' ? newCost : 0;
+                        
+                        frontier.push({
+                            board: neighbor.board,
+                            cost: newCost,
+                            heuristic: nHeuristic,
+                            priority: priority,
+                            path: [...current.path, current.board],
+                            moveList: [...current.moveList, neighbor.movedTile]
+                        });
+                    }
+                }
+
+                // Safety limit for DFS/BFS depth/nodes
+                if (exploredNodes > 30000) break;
+            }
+
+            return { success: false, explored: exploredNodes, time: 0 };
+        }
+
+        function renderBoard(boardToRender = currentBoard) {
+            const grid = document.getElementById('puzzle-grid');
+            grid.innerHTML = '';
+            
+            let emptyIdx = boardToRender.indexOf('x');
+
+            boardToRender.forEach((val, idx) => {
+                const tile = document.createElement('div');
+                tile.className = `tile-anim flex items-center justify-center rounded-xl font-bold text-2xl sm:text-3xl mono-font select-none`;
+                
+                if (val === 'x') {
+                    tile.className += ` bg-slate-900/40 border border-dashed border-slate-800 text-transparent`;
+                    tile.innerText = '';
+                } else {
+                    let isGoalMatch = val === GOAL_BOARD[idx];
+                    let isAdjacentToEmpty = Math.abs(Math.floor(idx / 3) - Math.floor(emptyIdx / 3)) + Math.abs((idx % 3) - (emptyIdx % 3)) === 1;
+
+                    if (gameMode === 'manual' && isAdjacentToEmpty) {
+                        tile.className += ` bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-lg shadow-indigo-900/40 transform hover:scale-105`;
+                        tile.onclick = () => makeManualMove(idx);
+                    } else if (isGoalMatch) {
+                        tile.className += ` bg-emerald-500/10 border border-emerald-500/30 text-emerald-400`;
+                    } else {
+                        tile.className += ` bg-slate-900 border border-slate-800 text-slate-200`;
+                    }
+                    tile.innerText = val;
+                }
+                grid.appendChild(tile);
+            });
+        }
+
+        function setMode(mode) {
+            gameMode = mode;
+            stopAutoSolve();
+            
+            const btnManual = document.getElementById('mode-manual');
+            const btnAuto = document.getElementById('mode-auto');
+            const algoContainer = document.getElementById('algo-container');
+            const autoControls = document.getElementById('auto-controls');
+            const feedbackPanel = document.getElementById('feedback-panel');
+            const badge = document.getElementById('game-status-badge');
+
+            if (mode === 'manual') {
+                btnManual.className = "py-2 text-sm font-medium rounded-lg transition-all bg-indigo-600 text-white shadow-lg";
+                btnAuto.className = "py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white";
+                algoContainer.classList.add('hidden');
+                autoControls.classList.add('hidden');
+                feedbackPanel.classList.remove('hidden');
+                badge.innerText = "Manual Mode Active";
+                badge.className = "px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30";
+                resetGame();
+            } else {
+                btnAuto.className = "py-2 text-sm font-medium rounded-lg transition-all bg-indigo-600 text-white shadow-lg";
+                btnManual.className = "py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white";
+                algoContainer.classList.remove('hidden');
+                autoControls.classList.remove('hidden');
+                feedbackPanel.classList.add('hidden');
+                badge.innerText = "Auto Solve Ready";
+                badge.className = "px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30";
+                resetGame();
+                prepareAutoSolve();
+            }
+            renderBoard();
+        }
+
+        function setAlgorithm(algo) {
+            currentAlgo = algo;
+            ['astar', 'ucs', 'bfs', 'dfs'].forEach(a => {
+                const b = document.getElementById(`btn-${a}`);
+                if (a === algo) {
+                    b.className = "p-2.5 text-xs font-semibold rounded-xl border border-indigo-500/50 bg-indigo-500/10 text-indigo-300 transition-all";
+                } else {
+                    b.className = "p-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 transition-all";
+                }
+            });
+            prepareAutoSolve();
+        }
+
+        function makeManualMove(tileIdx) {
+            let emptyIdx = currentBoard.indexOf('x');
+            // Swap tile with empty space
+            let newBoard = [...currentBoard];
+            let movedVal = newBoard[tileIdx];
+            newBoard[tileIdx] = 'x';
+            newBoard[emptyIdx] = movedVal;
+
+            playSound('tile');
+
+            // Evaluate move grade
+            let prevManhattan = getManhattanDistance(currentBoard);
+            let newManhattan = getManhattanDistance(newBoard);
+            let delta = newManhattan - prevManhattan; // negative is closer to goal!
+
+            // Check if loop / backtracking (F grade)
+            let isLoop = boardHistory.some(b => boardsEqual(b, newBoard));
+
+            let grade = 'B';
+            let title = 'Meh move';
+            let desc = 'Maintains or slightly adjusts distance.';
+            let badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+
+            if (isLoop) {
+                grade = 'F';
+                title = 'Loop Move / Revisit!';
+                desc = 'You have visited this exact board configuration before.';
+                badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+            } else {
+                // Find optimal distance from current state using A* solver 1-step lookahead or optimal delta
+                // S = optimal move (reduces manhattan distance maximally or aligns with shortest path)
+                if (delta < 0) {
+                    if (delta <= -2) {
+                        grade = 'S';
+                        title = 'Optimal Move!';
+                        desc = 'Excellent! Significantly brings the puzzle closer to the goal.';
+                        badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+                    } else {
+                        grade = 'A';
+                        title = 'Good Move';
+                        desc = 'Brings the puzzle closer to the goal.';
+                        badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+                    }
+                } else if (delta === 0) {
+                    grade = 'B';
+                    title = 'Neutral Move';
+                    desc = 'Maintains the same distance to the goal.';
+                    badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+                } else {
+                    grade = 'C';
+                    title = 'Bad Move';
+                    desc = 'Moves the puzzle farther away from the goal.';
+                    badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+                }
+            }
+
+            // Save history
+            boardHistory.push([...currentBoard]);
+            currentBoard = newBoard;
+            moveCount++;
+
+            document.getElementById('stat-moves').innerText = moveCount;
+            document.getElementById('grade-badge').innerText = grade;
+            document.getElementById('grade-badge').className = `w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg mono-font border ${badgeColor}`;
+            document.getElementById('feedback-title').innerText = title;
+            document.getElementById('feedback-desc').innerText = desc;
+            document.getElementById('manhattan-delta').innerText = `Δ ${delta > 0 ? '+' + delta : delta}`;
+
+            renderBoard();
+
+            if (boardsEqual(currentBoard, GOAL_BOARD)) {
+                playSound('success');
+                document.getElementById('feedback-title').innerText = "Puzzle Solved!";
+                document.getElementById('feedback-desc').innerText = `Completed in ${moveCount} moves! Amazing job.`;
+                document.getElementById('grade-badge').innerText = "★";
+            }
+        }
+
+        function prepareAutoSolve() {
+            stopAutoSolve();
+            document.getElementById('solution-status').innerText = "Computing...";
+            
+            setTimeout(() => {
+                let res = solvePuzzle(currentBoard, currentAlgo);
+                if (res.success) {
+                    solutionPath = res.path;
+                    solutionIndex = 0;
+                    document.getElementById('solution-status').innerText = `${res.path.length - 1} steps (${res.explored} nodes, ${res.time}ms)`;
+                    document.getElementById('play-pause-btn').disabled = false;
+                    document.getElementById('play-pause-btn').className = "px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-900/30 cursor-pointer";
+                    document.getElementById('stat-moves').innerText = `0 / ${res.path.length - 1}`;
+                    document.getElementById('stat-meta').innerText = `${res.explored} nodes`;
+                } else {
+                    document.getElementById('solution-status').innerText = "No solution / Limit exceeded";
+                    document.getElementById('play-pause-btn').disabled = true;
+                }
+            }, 50);
+        }
+
+        function startAutoSolve() {
+            if (solutionPath.length === 0) return;
+            if (solutionIndex >= solutionPath.length - 1) solutionIndex = 0;
+            isPlayingAuto = true;
+            document.getElementById('play-pause-btn').innerText = "Pause";
+            document.getElementById('solve-btn').disabled = true;
+
+            autoTimer = setInterval(() => {
+                if (solutionIndex < solutionPath.length) {
+                    currentBoard = [...solutionPath[solutionIndex]];
+                    renderBoard();
+                    document.getElementById('stat-moves').innerText = `${solutionIndex} / ${solutionPath.length - 1}`;
+                    solutionIndex++;
+                }
+                if (solutionIndex >= solutionPath.length) {
+                    stopAutoSolve();
+                    playSound('success');
+                    document.getElementById('solution-status').innerText = "Solved!";
+                }
+            }, autoSpeed);
+        }
+
+        function togglePlayPause() {
+            if (isPlayingAuto) {
+                stopAutoSolve();
+            } else {
+                startAutoSolve();
+            }
+        }
+
+        function stopAutoSolve() {
+            isPlayingAuto = false;
+            clearInterval(autoTimer);
+            const pb = document.getElementById('play-pause-btn');
+            if (pb) {
+                pb.innerText = "Play";
+                document.getElementById('solve-btn').disabled = false;
+            }
+        }
+
+        function resetAutoPlayback() {
+            stopAutoSolve();
+            solutionIndex = 0;
+            if (solutionPath.length > 0) {
+                currentBoard = [...solutionPath[0]];
+                renderBoard();
+                document.getElementById('stat-moves').innerText = `0 / ${solutionPath.length - 1}`;
+            }
+        }
+
+        function updateSpeed(val) {
+            autoSpeed = parseInt(val);
+            document.getElementById('speed-label').innerText = `${autoSpeed}ms`;
+            if (isPlayingAuto) {
+                stopAutoSolve();
+                startAutoSolve();
+            }
+        }
+
+        function resetGame() {
+            currentBoard = [...initialBoard];
+            moveCount = 0;
+            boardHistory = [];
+            document.getElementById('stat-moves').innerText = '0';
+            document.getElementById('stat-meta').innerText = '0.0s';
+            document.getElementById('grade-badge').innerText = '?';
+            document.getElementById('grade-badge').className = "w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-lg mono-font text-slate-400";
+            document.getElementById('feedback-title').innerText = "Make your first move!";
+            document.getElementById('feedback-desc').innerText = "Click tiles adjacent to the empty space.";
+            document.getElementById('manhattan-delta').innerText = "Δ 0";
+            renderBoard();
+        }
+
+        function loadDefaultBoard() {
+            initialBoard = [5, 3, 7, 1, 'x', 4, 8, 2, 6];
+            setMode(gameMode);
+        }
+
+        function loadRandomBoard() {
+            // Generate valid solvable random permutation
+            let board = [...GOAL_BOARD];
+            for (let i = 0; i < 100; i++) {
+                let neighbors = getNeighbors(board);
+                board = neighbors[Math.floor(Math.random() * neighbors.length)].board;
+            }
+            if (!isSolvable(board)) {
+                // Swap two elements to ensure solvability
+                let idx1 = board.findIndex(x => x !== 'x' && x !== 1);
+                let idx2 = board.findIndex(x => x !== 'x' && x !== 2 && x !== 1);
+                let temp = board[idx1];
+                board[idx1] = board[idx2];
+                board[idx2] = temp;
+            }
+            initialBoard = board;
+            setMode(gameMode);
+        }
+
+        function openEditorModal() {
+            document.getElementById('editor-modal').classList.remove('hidden');
+            document.getElementById('custom-board-input').value = initialBoard.reduce((acc, val, idx) => {
+                acc += val + (idx % 3 === 2 ? '\n' : ' ');
+                return acc;
+            }, '').trim();
+        }
+
+        function closeEditorModal() {
+            document.getElementById('editor-modal').classList.add('hidden');
+            document.getElementById('editor-error').classList.add('hidden');
+        }
+
+        function applyCustomBoard() {
+            let text = document.getElementById('custom-board-input').value;
+            let tokens = text.replace(/,/g, ' ').trim().split(/\s+/);
+            
+            let errEl = document.getElementById('editor-error');
+            if (tokens.length !== 9) {
+                errEl.innerText = "Error: Exactly 9 values are required.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            let newBoard = tokens.map(t => (t === '0' || t.toLowerCase() === 'x') ? 'x' : parseInt(t, 10));
+            let counts = {};
+            for (let t of newBoard) {
+                if (t !== 'x' && (isNaN(t) || t < 1 || t > 8)) {
+                    errEl.innerText = "Error: Values must be numbers 1-8 and 'x'.";
+                    errEl.classList.add('hidden');
+                    return;
+                }
+                counts[t] = (counts[t] || 0) + 1;
+            }
+
+            for (let i = 1; i <= 8; i++) {
+                if (counts[i] !== 1 || counts['x'] !== 1) {
+                    errEl.innerText = "Error: Must contain numbers 1 through 8 and one 'x' exactly once.";
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+            }
+
+            if (!isSolvable(newBoard)) {
+                errEl.innerText = "Warning / Error: This board configuration is unsolvable!";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            initialBoard = newBoard;
+            closeEditorModal();
+            setMode(gameMode);
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            loadDefaultBoard();
+        };
+    </script>
+</body>
+</html>
