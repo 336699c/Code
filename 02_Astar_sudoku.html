@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sudoku Master - AI Visualizer & Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; touch-action: manipulation; }
+        .mono-font { font-family: 'JetBrains Mono', monospace; }
+        .border-r-thick { border-right: 3px solid #485a83 !important;}
+        .border-b-thick { border-bottom: 3px solid #485a83 !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #020617; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        @keyframes bounce-scale {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .animate-win { animation: bounce-scale 0.8s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+    <header class="w-full max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md sticky top-0 z-30">
+        <div class="flex items-center space-x-3 mb-2 sm:mb-0">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 text-white font-black text-lg">S</div>
+            <div>
+                <h1 class="text-lg font-bold bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">Sudoku Master</h1>
+                <p class="text-[11px] text-slate-400">DFS Search AI & Interactive Game</p>
+            </div>
+        </div>
+        
+        <!-- Difficulty Selector -->
+        <div class="flex items-center space-x-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs overflow-x-auto max-w-full">
+            <button onclick="setDifficulty('easy')" id="diff-easy" class="px-2.5 py-1.5 rounded-lg font-medium transition-all bg-indigo-600 text-white shadow">Easy</button>
+            <button onclick="setDifficulty('medium')" id="diff-medium" class="px-2.5 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white">Medium</button>
+            <button onclick="setDifficulty('hard')" id="diff-hard" class="px-2.5 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white">Hard</button>
+            <button onclick="setDifficulty('expert')" id="diff-expert" class="px-2.5 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white">Expert</button>
+            <button onclick="setDifficulty('manual')" id="diff-manual" class="px-2.5 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white">Manual</button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-4xl mx-auto px-3 py-4 flex-grow flex flex-col lg:flex-row gap-4 items-center lg:items-start justify-center">
+        
+        <!-- Left Column: Sudoku Grid & Status Bar -->
+        <div class="flex flex-col items-center w-full max-w-[420px] relative">
+            
+            <!-- Game Info Bar -->
+            <div class="w-full flex items-center justify-between px-2 mb-2 text-xs font-semibold text-slate-400">
+                <div class="flex items-center space-x-3">
+                    <span id="mistakes-counter" class="text-rose-400 font-bold">Mistakes: 0/3</span>
+                    <span id="dfs-nodes-counter" class="mono-font text-cyan-300" title="DFS nodes explored to solve the current board">DFS: 0</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="timer-display" class="mono-font text-slate-300">00:00</span>
+                    <button onclick="togglePauseGame()" id="pause-btn" class="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors" title="Pause Game">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 9x9 Sudoku Board Container -->
+            <div id="sudoku-grid" class="grid grid-cols-9 grid-rows-9 w-full aspect-square bg-slate-900 rounded-2xl border-4 border-slate-800 shadow-2xl overflow-hidden relative select-none">
+                <!-- Populated dynamically via JS -->
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="pause-overlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center z-20 hidden">
+                <div class="text-xl font-bold text-slate-200 mb-2">Game Paused</div>
+                <button onclick="togglePauseGame()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm shadow-lg transition-all">Resume Game</button>
+            </div>
+
+            <!-- Win Overlay -->
+            <div id="win-overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-xl rounded-2xl flex flex-col items-center justify-center z-30 hidden p-6 text-center">
+                <div class="text-4xl font-extrabold bg-gradient-to-r from-emerald-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent mb-2 animate-win">You Win~! 🎉</div>
+                <p class="text-slate-300 text-sm mb-6">Incredible! You solved the puzzle in <span id="win-time" class="font-bold text-indigo-400">00:00</span>.</p>
+                <div class="flex space-x-3">
+                    <button onclick="startNewGame(); hideWinModal();" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all text-sm">New Game</button>
+                    <button onclick="hideWinModal()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-all text-sm">View Board</button>
+                </div>
+            </div>
+
+            <!-- Lose Overlay -->
+            <div id="lose-overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-xl rounded-2xl flex flex-col items-center justify-center z-30 hidden p-6 text-center">
+                <div class="text-4xl font-extrabold text-rose-500 mb-2">Game Over 😢</div>
+                <p class="text-slate-300 text-sm mb-6">Too many mistakes made. Better luck next time!</p>
+                <div class="flex space-x-3">
+                    <button onclick="startNewGame(); hideLoseModal();" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all text-sm">New Game</button>
+                    <button onclick="restartGame(); hideLoseModal();" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-all text-sm">Try Again</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Toolbar, Numpad & AI Tree Visualizer Panel -->
+        <div class="flex flex-col w-full max-w-[420px] lg:max-w-[380px] space-y-3">
+            
+            <!-- Quick Action Toolbar -->
+            <div class="grid grid-cols-6 gap-1.5 bg-slate-900/80 p-2 rounded-2xl border border-slate-800/80 shadow-lg backdrop-blur-md">
+                <button onclick="undoMove()" class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-all active:scale-95" title="Undo">
+                    <svg class="w-4 h-4 mb-0.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    <span class="text-[9px] font-medium">Undo</span>
+                </button>
+                <button onclick="eraseCell()" class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-all active:scale-95" title="Erase">
+                    <svg class="w-4 h-4 mb-0.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <span class="text-[9px] font-medium">Erase</span>
+                </button>
+                <button onclick="togglePencilMode()" id="pencil-btn" class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-all active:scale-95 relative" title="Notes Mode">
+                    <svg class="w-4 h-4 mb-0.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    <span class="text-[9px] font-medium">Notes <span id="pencil-status" class="text-[8px] font-bold text-slate-500 uppercase">OFF</span></span>
+                </button>
+                <button onclick="restartGame()" class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-all active:scale-95" title="Restart Game">
+                    <svg class="w-4 h-4 mb-0.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span class="text-[9px] font-medium">Restart</span>
+                </button>
+                <button onclick="provideHint()" class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-all active:scale-95 relative" title="Hint">
+                    <svg class="w-4 h-4 mb-0.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <span class="text-[9px] font-medium">Hint</span>
+                </button>
+                <button onclick="openTreeModal()" class="flex flex-col items-center justify-center p-2 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg transition-all active:scale-95" title="DFS Auto Solve">
+                    <svg class="w-4 h-4 mb-0.5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                    <span class="text-[9px] font-bold">Solve</span>
+                </button>
+            </div>
+
+            <!-- Interactive Numpad (1-9) -->
+            <div class="grid grid-cols-9 gap-1.5 bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/80 shadow-lg backdrop-blur-md">
+                <button onclick="inputNumber(1)" id="numpad-1" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">1</button>
+                <button onclick="inputNumber(2)" id="numpad-2" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">2</button>
+                <button onclick="inputNumber(3)" id="numpad-3" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">3</button>
+                <button onclick="inputNumber(4)" id="numpad-4" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">4</button>
+                <button onclick="inputNumber(5)" id="numpad-5" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">5</button>
+                <button onclick="inputNumber(6)" id="numpad-6" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">6</button>
+                <button onclick="inputNumber(7)" id="numpad-7" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">7</button>
+                <button onclick="inputNumber(8)" id="numpad-8" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">8</button>
+                <button onclick="inputNumber(9)" id="numpad-9" class="col-span-1 py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-indigo-600 text-indigo-300 font-extrabold text-lg rounded-xl transition-all shadow">9</button>
+            </div>
+
+            <!-- New Game / New Board Button -->
+            <button onclick="startNewGame()" class="w-full py-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-600 hover:opacity-95 text-white font-bold rounded-2xl shadow-xl transition-all flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                <span>New Game / Board</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- DFS Search Tree Modal with Node Board Preview -->
+    <div id="tree-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <!-- Modal Header -->
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h3 class="font-bold text-sm sm:text-base text-slate-200">DFS Search Tree & State Space Inspector</h3>
+                </div>
+                <button onclick="closeTreeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body: Canvas + Node Preview -->
+            <div class="flex flex-col md:flex-row flex-grow overflow-hidden">
+                <!-- Canvas Container -->
+                <div class="relative flex-grow bg-slate-950 overflow-auto p-4 flex items-center justify-center min-h-[300px]">
+                    <canvas id="tree-canvas" class="cursor-grab active:cursor-grabbing block mx-auto"></canvas>
+                </div>
+                <!-- Node State Preview Sidebar -->
+                <div class="w-full md:w-64 bg-slate-900/90 border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col items-center justify-center">
+                    <h4 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Node Board State</h4>
+                    <div id="node-preview-grid" class="grid grid-cols-9 w-48 aspect-square bg-slate-950 rounded-xl border-2 border-slate-700 overflow-hidden mb-3">
+                        <!-- Populated on node click -->
+                    </div>
+                    <p id="node-info-text" class="text-[11px] text-slate-400 text-center">Click any node on the tree to inspect its board state and termination reason.</p>
+                </div>
+            </div>
+
+            <!-- Modal Footer & Stats -->
+            <div class="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+                <div id="tree-stats" class="font-medium text-slate-300">Computing DFS Search...</div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="applyAutoSolution()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow transition-all">Apply Node State to Board</button>
+                    <button onclick="closeTreeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DIFFICULTY_CLUES = { easy: 40, medium: 34, hard: 30, expert: 26 };
+
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function canPlace(grid, idx, num) {
+            let r = Math.floor(idx / 9), c = idx % 9;
+            for (let i = 0; i < 9; i++) {
+                if (grid[r * 9 + i] === num) return false;
+                if (grid[i * 9 + c] === num) return false;
+            }
+            let br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (grid[(br + i) * 9 + (bc + j)] === num) return false;
+                }
+            }
+            return true;
+        }
+
+        // Generate a full, randomly-filled valid Sudoku solution
+        function generateSolvedBoard() {
+            let grid = Array(81).fill(0);
+            function fill(idx) {
+                if (idx === 81) return true;
+                if (grid[idx] !== 0) return fill(idx + 1);
+                for (let num of shuffleArray([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
+                    if (canPlace(grid, idx, num)) {
+                        grid[idx] = num;
+                        if (fill(idx + 1)) return true;
+                        grid[idx] = 0;
+                    }
+                }
+                return false;
+            }
+            fill(0);
+            return grid;
+        }
+
+        // Solver: mode 'first' returns first solution (or null), mode 'count' returns solution count (max 2)
+        function solveGrid(grid, mode) {
+            let g = [...grid], count = 0, result = null;
+            function candidates(idx) {
+                let r = Math.floor(idx / 9), c = idx % 9;
+                let used = new Set();
+                for (let k = 0; k < 9; k++) {
+                    used.add(g[r * 9 + k]);
+                    used.add(g[k * 9 + c]);
+                }
+                let br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+                for (let k = 0; k < 3; k++) {
+                    for (let j = 0; j < 3; j++) {
+                        used.add(g[(br + k) * 9 + (bc + j)]);
+                    }
+                }
+                let opts = [];
+                for (let n = 1; n <= 9; n++) if (!used.has(n)) opts.push(n);
+                return opts;
+            }
+            function search() {
+                if (mode === 'count' && count >= 2) return;
+                let bestIdx = -1, bestOpts = null;
+                for (let i = 0; i < 81; i++) {
+                    if (g[i] === 0) {
+                        let opts = candidates(i);
+                        if (opts.length === 0) return;
+                        if (bestIdx === -1 || opts.length < bestOpts.length) { bestIdx = i; bestOpts = opts; }
+                    }
+                }
+                if (bestIdx === -1) {
+                    count++;
+                    if (mode === 'first') result = [...g];
+                    return;
+                }
+                for (let n of bestOpts) {
+                    g[bestIdx] = n;
+                    search();
+                    g[bestIdx] = 0;
+                    if (mode === 'first' && result) return;
+                    if (mode === 'count' && count >= 2) return;
+                }
+            }
+            search();
+            return mode === 'first' ? result : count;
+        }
+
+        // Dynamically generate a puzzle with a unique solution based on difficulty
+        function generatePuzzle(difficulty) {
+            let targetClues = DIFFICULTY_CLUES[difficulty] || 35;
+            let solution = generateSolvedBoard();
+            let puzzle = [...solution];
+            let removeOrder = shuffleArray(Array.from({ length: 81 }, (_, i) => i));
+            for (let idx of removeOrder) {
+                let clues = 0;
+                for (let v of puzzle) if (v !== 0) clues++;
+                if (clues <= targetClues) break;
+                let backup = puzzle[idx];
+                puzzle[idx] = 0;
+                if (solveGrid(puzzle, 'count') !== 1) puzzle[idx] = backup;
+            }
+            return { puzzle, solution };
+        }
+
+        let currentDifficulty = 'easy';
+        let initialBoard = [];
+        let board = [];
+        let solvedBoard = null;
+        let notes = Array(81).fill(0).map(() => new Set());
+        let selectedCell = null;
+        let pencilMode = false;
+        let mistakes = 0;
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let isPaused = false;
+        let moveHistory = [];
+        let treeNodesData = [];
+        let nodePositions = {};
+        let activeSelectedNodeBoard = null;
+
+        // Audio Synthesizer
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'tile') {
+                    osc.frequency.setValueAtTime(350, now);
+                    osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now); osc.stop(now + 0.05);
+                } else if (type === 'success') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(554.37, now + 0.1);
+                    osc.frequency.setValueAtTime(659.25, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now); osc.stop(now + 0.35);
+                } else if (type === 'error') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.setValueAtTime(100, now + 0.15);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now); osc.stop(now + 0.2);
+                }
+            } catch(e) {}
+        }
+
+        // Timer
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerSeconds = 0;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                if (!isPaused) {
+                    timerSeconds++;
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            let m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+            let s = (timerSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        }
+
+        function getFormattedTimer() {
+            let m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+            let s = (timerSeconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function togglePauseGame() {
+            isPaused = !isPaused;
+            document.getElementById('pause-overlay').classList.toggle('hidden', !isPaused);
+        }
+
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            ['easy', 'medium', 'hard', 'expert', 'manual'].forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                if (d === diff) {
+                    btn.className = "px-2.5 py-1.5 rounded-lg font-medium transition-all bg-indigo-600 text-white shadow";
+                } else {
+                    btn.className = "px-2.5 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white";
+                }
+            });
+            startNewGame();
+        }
+
+        function startNewGame() {
+            if (currentDifficulty === 'manual') {
+                initialBoard = Array(81).fill(0);
+                board = Array(81).fill(0);
+                solvedBoard = null;
+            } else {
+                let generated = generatePuzzle(currentDifficulty);
+                initialBoard = [...generated.puzzle];
+                board = [...generated.puzzle];
+                solvedBoard = [...generated.solution];
+            }
+            notes = Array(81).fill(0).map(() => new Set());
+            selectedCell = null;
+            mistakes = 0;
+            moveHistory = [];
+            activeSelectedNodeBoard = null;
+            
+            document.getElementById('mistakes-counter').innerText = `Mistakes: 0/3`;
+            hideWinModal();
+            hideLoseModal();
+            startTimer();
+            renderGrid();
+            updateDfsNodeCount();
+        }
+
+        function restartGame() {
+            board = [...initialBoard];
+            notes = Array(81).fill(0).map(() => new Set());
+            selectedCell = null;
+            mistakes = 0;
+            moveHistory = [];
+            activeSelectedNodeBoard = null;
+            document.getElementById('mistakes-counter').innerText = `Mistakes: 0/3`;
+            playSound('tile');
+            renderGrid();
+            updateDfsNodeCount();
+        }
+
+        function hideWinModal() {
+            document.getElementById('win-overlay').classList.add('hidden');
+        }
+
+        function hideLoseModal() {
+            document.getElementById('lose-overlay').classList.add('hidden');
+        }
+
+        // Auto-clear notes related to a cell and value
+        function clearRelatedNotes(idx, num) {
+            let r = Math.floor(idx / 9);
+            let c = idx % 9;
+            let br = Math.floor(r / 3);
+            let bc = Math.floor(c / 3);
+
+            for (let i = 0; i < 81; i++) {
+                let tr = Math.floor(i / 9);
+                let tc = i % 9;
+                let tbr = Math.floor(tr / 3);
+                let tbc = Math.floor(tc / 3);
+
+                if (tr === r || tc === c || (tbr === br && tbc === bc)) {
+                    if (notes[i].has(num)) {
+                        notes[i].delete(num);
+                    }
+                }
+            }
+        }
+
+        // Render Sudoku Grid
+        function renderGrid() {
+            const gridEl = document.getElementById('sudoku-grid');
+            gridEl.innerHTML = '';
+
+            board.forEach((val, idx) => {
+                const cell = document.createElement('div');
+                let r = Math.floor(idx / 9);
+                let c = idx % 9;
+
+                let cls = "flex flex-col items-center justify-center font-bold text-lg sm:text-2xl mono-font relative cursor-pointer select-none transition-all ";
+                
+                if (c % 3 === 2 && c !== 8) cls += "border-r-thick ";
+                else if (c !== 8) cls += "border-r border-slate-800/80 ";
+
+                if (r % 3 === 2 && r !== 8) cls += "border-b-thick ";
+                else if (r !== 8) cls += "border-b border-slate-800/80 ";
+
+                let isInitial = initialBoard[idx] !== 0;
+                let isSelected = selectedCell === idx;
+                let isPeer = selectedCell !== null && (
+                    Math.floor(selectedCell / 9) === r ||
+                    (selectedCell % 9) === c ||
+                    (Math.floor(Math.floor(selectedCell / 9) / 3) === Math.floor(r / 3) && Math.floor((selectedCell % 9) / 3) === Math.floor(c / 3))
+                );
+                let isSameValue = selectedCell !== null && board[selectedCell] !== 0 && board[selectedCell] === val;
+
+                // Check correctness for user-entered cells
+                let isIncorrect = !isInitial && val !== 0 && solvedBoard && solvedBoard[idx] !== val;
+                let isUserDigit = val !== 0 && !isInitial && !isIncorrect;
+
+                if (isIncorrect) {
+                    cls += "bg-rose-950/80 text-rose-300 ring-1 ring-rose-500 z-10 ";
+                } else if (isSelected) {
+                    cls += "bg-indigo-600/30 text-indigo-200 ring-2 ring-indigo-500 z-10 ";
+                } else if (isSameValue) {
+                    cls += "bg-indigo-900/50 text-indigo-200 ";
+                } else if (isPeer) {
+                    cls += "bg-slate-800/40 " + (isUserDigit ? "text-indigo-300 " : "text-slate-300 ");
+                } else if (isInitial) {
+                    cls += "bg-slate-900/90 text-slate-100 font-extrabold ";
+                } else {
+                    cls += "bg-slate-950 " + (isUserDigit ? "text-indigo-400 " : "text-slate-300 hover:bg-slate-900/80 ");
+                }
+
+                cell.className = cls;
+                cell.onclick = () => { selectedCell = idx; renderGrid(); };
+
+                if (val !== 0) {
+                    cell.innerText = val;
+                } else {
+                    const notesGrid = document.createElement('div');
+                    notesGrid.className = "grid grid-cols-3 w-full h-full p-0.5 text-[8px] sm:text-[10px] text-slate-500 font-medium";
+                    let cellNotes = notes[idx];
+                    for (let n = 1; n <= 9; n++) {
+                        const noteSpan = document.createElement('span');
+                        noteSpan.className = "flex items-center justify-center";
+                        if (cellNotes.has(n)) noteSpan.innerText = n;
+                        noteSpan.style.height = "7px";
+                        notesGrid.appendChild(noteSpan);
+                    }
+                    cell.appendChild(notesGrid);
+                }
+
+                gridEl.appendChild(cell);
+            });
+
+            updateNumpad();
+        }
+
+        function updateNumpad() {
+            for (let n = 1; n <= 9; n++) {
+                const btn = document.getElementById(`numpad-${n}`);
+                if (!btn) continue;
+                let count = 0;
+                for (let i = 0; i < 81; i++) if (board[i] === n) count++;
+                if (count === 9) {
+                    btn.innerHTML = '<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+                    btn.classList.add('bg-emerald-500/20', 'text-emerald-400');
+                    btn.classList.remove('bg-slate-800', 'text-indigo-300', 'font-extrabold');
+                } else {
+                    btn.innerText = n;
+                    btn.classList.add('bg-slate-800', 'text-indigo-300', 'font-extrabold');
+                    btn.classList.remove('bg-emerald-500/20', 'text-emerald-400');
+                }
+            }
+        }
+
+        function updateDfsNodeCount() {
+            const el = document.getElementById('dfs-nodes-counter');
+            if (board.every(v => v !== 0)) {
+                el.innerText = 'DFS: 0';
+                return;
+            }
+            const res = solveSudokuAStar([...board], 5000);
+            el.innerText = res.budgetExceeded ? `DFS: ${res.nodesCount}+` : `DFS: ${res.nodesCount}`;
+        }
+
+        function checkGameSolved() {
+            if (!solvedBoard) {
+                // Manual mode: win when every cell is filled with a valid solution
+                if (board.every(v => v !== 0)) {
+                    let sol = solveGrid(board, 'first');
+                    if (sol && sol.join(',') === board.join(',')) {
+                        clearInterval(timerInterval);
+                        playSound('success');
+                        document.getElementById('win-time').innerText = getFormattedTimer();
+                        document.getElementById('win-overlay').classList.remove('hidden');
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (board.every((v, i) => v === solvedBoard[i])) {
+                clearInterval(timerInterval);
+                playSound('success');
+                document.getElementById('win-time').innerText = getFormattedTimer();
+                document.getElementById('win-overlay').classList.remove('hidden');
+                return true;
+            }
+            return false;
+        }
+
+        // Input Number with direct validation and auto note clearing
+        function inputNumber(num) {
+            if (selectedCell === null || initialBoard[selectedCell] !== 0) return;
+
+            let oldVal = board[selectedCell];
+            let oldNotes = new Set(notes[selectedCell]);
+            moveHistory.push({ type: 'cell', idx: selectedCell, val: oldVal, notes: oldNotes });
+
+            if (pencilMode) {
+                if (notes[selectedCell].has(num)) {
+                    notes[selectedCell].delete(num);
+                } else {
+                    notes[selectedCell].add(num);
+                }
+                playSound('tile');
+            } else {
+                board[selectedCell] = num;
+                notes[selectedCell].clear();
+                clearRelatedNotes(selectedCell, num);
+
+                if (solvedBoard) {
+                    let isCorrect = solvedBoard[selectedCell] === num;
+
+                    if (!isCorrect) {
+                        mistakes++;
+                        document.getElementById('mistakes-counter').innerText = `Mistakes: ${mistakes}/3`;
+                        playSound('error');
+                        if (mistakes >= 3) {
+                            clearInterval(timerInterval);
+                            document.getElementById('lose-overlay').classList.remove('hidden');
+                        }
+                    } else {
+                        playSound('success');
+                    }
+                } else {
+                    playSound('tile');
+                }
+
+                checkGameSolved();
+            }
+            renderGrid();
+            updateDfsNodeCount();
+        }
+
+        function eraseCell() {
+            if (selectedCell === null || initialBoard[selectedCell] !== 0) return;
+            moveHistory.push({ type: 'cell', idx: selectedCell, val: board[selectedCell], notes: new Set(notes[selectedCell]) });
+            board[selectedCell] = 0;
+            notes[selectedCell].clear();
+            playSound('tile');
+            renderGrid();
+            updateDfsNodeCount();
+        }
+
+        function undoMove() {
+            if (moveHistory.length === 0) return;
+            let last = moveHistory.pop();
+            if (last.type === 'cell') {
+                board[last.idx] = last.val;
+                notes[last.idx] = last.notes;
+                playSound('tile');
+                renderGrid();
+                updateDfsNodeCount();
+            }
+        }
+
+        function togglePencilMode() {
+            pencilMode = !pencilMode;
+            let statusEl = document.getElementById('pencil-status');
+            let btnEl = document.getElementById('pencil-btn');
+            if (pencilMode) {
+                statusEl.innerText = "ON";
+                statusEl.className = "text-[8px] font-bold text-cyan-400 uppercase";
+                btnEl.classList.add('bg-cyan-950/40', 'border', 'border-cyan-500/50');
+            } else {
+                statusEl.innerText = "OFF";
+                statusEl.className = "text-[8px] font-bold text-slate-500 uppercase";
+                btnEl.classList.remove('bg-cyan-950/40', 'border', 'border-cyan-500/50');
+            }
+        }
+
+        function provideHint() {
+            let sol = solvedBoard;
+            if (!sol) sol = solveGrid(board, 'first');
+            if (!sol) return;
+
+            let idx = selectedCell !== null && initialBoard[selectedCell] === 0 && board[selectedCell] !== sol[selectedCell] 
+                ? selectedCell 
+                : board.findIndex((v, i) => v !== sol[i]);
+
+            if (idx !== -1) {
+                board[idx] = sol[idx];
+                notes[idx].clear();
+                clearRelatedNotes(idx, sol[idx]);
+                playSound('success');
+                renderGrid();
+                checkGameSolved();
+                updateDfsNodeCount();
+            }
+        }
+
+        // DFS Search Algorithm & Tree Explorer with Discovery & Solution Path Tracking
+        function solveSudokuAStar(startBoard, maxNodes) {
+            let treeNodes = [{ id: 0, parent: null, depth: 0, board: [...startBoard], children: [], terminated: false, discovered: true, onSolutionPath: false, reason: "Root initial state." }];
+            let exploredCount = 0;
+            let finalSolved = null;
+            let solutionNodeId = null;
+            let budgetExceeded = false;
+
+            function getPossibleValues(b, idx) {
+                let used = new Set();
+                let r = Math.floor(idx / 9), c = idx % 9;
+                let br = Math.floor(r / 3), bc = Math.floor(c / 3);
+                for (let i = 0; i < 81; i++) {
+                    let tr = Math.floor(i / 9), tc = i % 9;
+                    let tbr = Math.floor(tr / 3), tbc = Math.floor(tc / 3);
+                    if (tr === r || tc === c || (tbr === br && tbc === bc)) {
+                        if (b[i] !== 0) used.add(b[i]);
+                    }
+                }
+                let res = [];
+                for (let n = 1; n <= 9; n++) if (!used.has(n)) res.push(n);
+                return res;
+            }
+
+            function search(nodeId) {
+                if (budgetExceeded) return false;
+                exploredCount++;
+                if (maxNodes && exploredCount > maxNodes) { budgetExceeded = true; return false; }
+
+                let currentBoard = treeNodes[nodeId].board;
+                treeNodes[nodeId].discovered = true;
+
+                let bestIdx = -1, minOpts = 10, bestOpts = [];
+                for (let i = 0; i < 81; i++) {
+                    if (currentBoard[i] === 0) {
+                        let opts = getPossibleValues(currentBoard, i);
+                        if (opts.length === 0) {
+                            // Mark current node as terminating due to conflict
+                            treeNodes[nodeId].terminated = true;
+                            treeNodes[nodeId].reason = `Branch terminated: Cell [${Math.floor(i/9)}, ${i%9}] has no legal values remaining (Sudoku constraint violation).`;
+                            return false;
+                        }
+                        if (opts.length < minOpts) {
+                            minOpts = opts.length;
+                            bestIdx = i;
+                            bestOpts = opts;
+                            if (minOpts === 1) break;
+                        }
+                    }
+                }
+
+                if (bestIdx === -1) {
+                    finalSolved = currentBoard;
+                    solutionNodeId = nodeId;
+                    return true;
+                }
+
+                // Eagerly create a node for EVERY valid candidate value so that
+                // unvisited alternatives appear in the tree as dark gray siblings.
+                let childIds = [];
+                for (let val of bestOpts) {
+                    let nextBoard = [...currentBoard];
+                    nextBoard[bestIdx] = val;
+                    let newNodeId = treeNodes.length;
+                    let nodeObj = { id: newNodeId, parent: nodeId, depth: treeNodes[nodeId].depth + 1, cell: bestIdx, val: val, board: nextBoard, children: [], terminated: false, discovered: false, onSolutionPath: false, reason: "Active state branch." };
+                    treeNodes[nodeId].children.push(newNodeId);
+                    treeNodes.push(nodeObj);
+                    childIds.push(newNodeId);
+                }
+
+                for (let cid of childIds) {
+                    if (search(cid)) return true;
+                    if (budgetExceeded) return false;
+                }
+
+                if (!treeNodes[nodeId].terminated && !budgetExceeded) {
+                    treeNodes[nodeId].terminated = true;
+                    treeNodes[nodeId].reason = "Branch terminated: Exhausted all candidate value branches without finding a valid completion.";
+                }
+                return false;
+            }
+
+            search(0);
+
+            if (solutionNodeId !== null) {
+                let cur = solutionNodeId;
+                while (cur !== null) {
+                    treeNodes[cur].onSolutionPath = true;
+                    cur = treeNodes[cur].parent;
+                }
+            }
+
+            return { success: finalSolved !== null, solvedBoard: finalSolved || startBoard, nodesCount: exploredCount, tree: treeNodes, solutionNodeId: solutionNodeId, budgetExceeded: budgetExceeded };
+        }
+
+        // Canvas Tree Visualization & Node Click Handling
+        function openTreeModal() {
+            document.getElementById('tree-modal').classList.remove('hidden');
+            document.getElementById('tree-stats').innerText = "Running DFS Search & Building Search Tree...";
+            
+            setTimeout(() => {
+                let res = solveSudokuAStar([...board], 100000);
+                if (res.success) solvedBoard = res.solvedBoard;
+                treeNodesData = res.tree;
+                if (res.budgetExceeded) {
+                    document.getElementById('tree-stats').innerText = `DFS explored ${res.nodesCount}+ nodes without finding a solution (exploration budget reached). Grid may be unsolvable.`;
+                } else if (res.success) {
+                    document.getElementById('tree-stats').innerText = `DFS Search Complete! Explored ${res.nodesCount} nodes. Green = solution path, dark gray = unexplored siblings, red = dead ends. Click nodes to preview.`;
+                } else {
+                    document.getElementById('tree-stats').innerText = `DFS Search Complete! Explored ${res.nodesCount} nodes, no solution exists. Red = dead ends, gray = unexplored.`;
+                }
+                drawSearchTree(treeNodesData);
+            }, 50);
+        }
+
+        function closeTreeModal() {
+            document.getElementById('tree-modal').classList.add('hidden');
+        }
+
+        function applyAutoSolution() {
+            let targetBoard = activeSelectedNodeBoard || solvedBoard;
+            if (targetBoard) {
+                board = [...targetBoard];
+                notes = Array(81).fill(0).map(() => new Set());
+                renderGrid();
+                playSound('success');
+                closeTreeModal();
+                checkGameSolved();
+                updateDfsNodeCount();
+            }
+        }
+
+        function renderNodePreview(node) {
+            activeSelectedNodeBoard = node.board;
+            const previewEl = document.getElementById('node-preview-grid');
+            previewEl.innerHTML = '';
+            node.board.forEach((val, idx) => {
+                const cell = document.createElement('div');
+                let r = Math.floor(idx / 9), c = idx % 9;
+                let cls = "flex items-center justify-center font-bold text-xs mono-font ";
+                if (c % 3 === 2 && c !== 8) cls += "border-r border-slate-700 ";
+                if (r % 3 === 2 && r !== 8) cls += "border-b border-slate-700 ";
+                cls += val !== 0 ? "text-indigo-400 bg-slate-900" : "text-slate-700 bg-slate-950";
+                cell.className = cls;
+                cell.innerText = val !== 0 ? val : "";
+                previewEl.appendChild(cell);
+            });
+            
+            let badges = [];
+            if (node.onSolutionPath) badges.push('<span class="text-emerald-400 font-bold">[Solution Path]</span>');
+            if (!node.discovered) badges.push('<span class="text-slate-400 font-bold">[Not Explored]</span>');
+            if (node.terminated) badges.push('<span class="text-rose-400 font-bold">[Terminated]</span>');
+            let statusMsg = `${badges.join(' ')} Node #${node.id} (Depth ${node.depth}). ${node.reason}`;
+            document.getElementById('node-info-text').innerHTML = statusMsg;
+        }
+
+        function drawSearchTree(nodes) {
+            const canvas = document.getElementById('tree-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            let levels = {};
+            nodes.forEach(n => {
+                if (!levels[n.depth]) levels[n.depth] = [];
+                levels[n.depth].push(n);
+            });
+
+            let maxDepth = Object.keys(levels).length;
+            let maxNodesInLevel = Math.max(...Object.values(levels).map(l => l.length));
+
+            // Perfectly size canvas to prevent clipping
+            canvas.width = Math.max(650, maxNodesInLevel * 60);
+            canvas.height = Math.max(350, maxDepth * 85);
+            canvas.style.marginTop = `${Math.max(350, maxDepth * 85)}px`;
+            canvas.style.marginLeft = `${Math.max(650, maxNodesInLevel * 60)/2}px`;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            nodePositions = {};
+            let levelHeight = canvas.height / (maxDepth + 1);
+
+            Object.keys(levels).forEach(depthStr => {
+                let depth = parseInt(depthStr);
+                let list = levels[depth];
+                let levelWidth = canvas.width / (list.length + 1);
+                list.forEach((node, idx) => {
+                    nodePositions[node.id] = {
+                        x: levelWidth * (idx + 1),
+                        y: levelHeight * (depth + 0.8),
+                        node: node
+                    };
+                });
+            });
+
+            // Draw Edges
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            nodes.forEach(node => {
+                if (node.parent !== null && nodePositions[node.parent] && nodePositions[node.id]) {
+                    let p1 = nodePositions[node.parent];
+                    let p2 = nodePositions[node.id];
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            });
+
+            // Draw Nodes with Discovery / Path / Termination coloring
+            Object.values(nodePositions).forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+
+                let fillColor = '#334155';
+                if (p.node.onSolutionPath) fillColor = '#86efac';
+                else if (!p.node.discovered) fillColor = '#4b5563';
+                else if (p.node.terminated) fillColor = '#ef4444';
+                else if (p.node.depth === 0) fillColor = '#6366f1';
+
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                let labelColor = '#ffffff';
+                if (p.node.onSolutionPath) labelColor = '#065f46';
+                ctx.fillStyle = labelColor;
+                ctx.font = '10px JetBrains Mono, monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let label = p.node.depth === 0 ? 'R' : `${p.node.val}`;
+                ctx.fillText(label, p.x, p.y);
+            });
+
+            // Handle Node Click on Canvas
+            canvas.onclick = function(event) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                for (let id in nodePositions) {
+                    let p = nodePositions[id];
+                    let dist = Math.hypot(p.x - mouseX, p.y - mouseY);
+                    if (dist <= 18) {
+                        renderNodePreview(p.node);
+                        break;
+                    }
+                }
+            };
+        }
+
+        window.onload = function() {
+            startNewGame();
+        };
+    </script>
+</body>
+</html>
